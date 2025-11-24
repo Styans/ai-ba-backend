@@ -1,0 +1,21 @@
+server:
+  port: "9000"
+
+database:
+  dsn: "postgres://postgres:456123@localhost:5432/aiba?sslmode=disable"
+
+ai:
+  provider: "openai"
+  api_key: ""
+
+confluence:
+  base_url: ""
+  user: ""
+  token: ""
+
+# Optional defaults (можно переопределить через env)
+jwt_secret: "a-string-secret-at-least-256-bits-long"
+google_client_id: ""
+auth_token: ""
+basic_user: ""
+basic_pass: ""
