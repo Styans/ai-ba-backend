@@ -36,13 +36,15 @@ func Run() error {
 
 	// repos
 	userRepo := repository.NewUserRepo(db)
-	// other repos can be created as needed (session/message/draft/review)
+	msgRepo := repository.NewMessageRepo(db)
+	sessRepo := repository.NewSessionRepo(db)
 
 	// services
 	authService := service.NewAuthService(userRepo)
+	llmService := service.NewLLMService()
 
-	// router
-	app := router.NewRouter(authService)
+	// router (передаём репозитории и llm)
+	app := router.NewRouter(authService, llmService, msgRepo, sessRepo)
 
 	port := cfg.Server.Port
 	if port == "" {
