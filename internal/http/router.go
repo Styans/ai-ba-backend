@@ -10,14 +10,21 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-// NewRouter теперь принимает дополнительные зависимости для ws
-func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) *fiber.App {
+// NewRouter теперь принимает дополнительные зависимости для ws и drafts
+func NewRouter(
+	authService *service.AuthService,
+	llm *service.LLMService,
+	draftService *service.DraftService,
+	msgRepo *repository.MessageRepo,
+	sessRepo *repository.SessionRepo,
+) *fiber.App {
 	app := fiber.New()
 
 	authHandler := handlers.NewAuthHandler(authService)
+	draftHandler := handlers.NewDraftHandler(draftService)
 
 	// Public auth endpoints
-	// app.Post("/auth/register", authHandler.Register)
+	app.Post("/auth/register", authHandler.Register)
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/google", authHandler.LoginWithGoogle)
 
@@ -31,6 +38,13 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 		user := middleware.GetUser(c)
 		return c.JSON(fiber.Map{"user": user})
 	})
+
+	// Drafts endpoints (Protected)
+	drafts := app.Group("/drafts", middleware.AuthMiddleware())
+	drafts.Post("/", draftHandler.Create)
+	drafts.Get("/", draftHandler.List)
+	drafts.Get("/:id/download", draftHandler.Download)
+	drafts.Post("/:id/approve", draftHandler.Approve)
 
 	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
 	// Если запрос не является WebSocket-upgrade — возвращаем понятный JSON вместо дефолтного 426.
@@ -56,7 +70,7 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 
 	// 2) Сам WS-обработчик
 	app.Get("/ws/agent", websocket.New(
-		NewWSHandler(llm, msgRepo, sessRepo),
+		NewWSHandler(llm, draftService, msgRepo, sessRepo),
 	))
 
 	return app

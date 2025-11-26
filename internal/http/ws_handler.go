@@ -36,7 +36,7 @@ type aiDonePayload struct {
 
 // NewWSHandler возвращает функцию-обработчик для websocket соединений.
 // Ожидается, что клиент подключается к /ws/agent?token=<jwt> или передаёт Authorization: Bearer <jwt>.
-func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) func(conn *websocket.Conn) {
+func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) func(conn *websocket.Conn) {
 	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
 
 	return func(conn *websocket.Conn) {
@@ -167,11 +167,48 @@ func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sess
 					_ = msgRepo.Save(um)
 				}
 
-				// Call LLM synchronously (simple flow)
-				reply, err := llm.Generate(p.Text)
+				// Fetch history for context
+				var history []models.Message
+				if msgRepo != nil {
+					msgs, _ := msgRepo.GetBySessionID(p.SessionID)
+					// Exclude the last message (current one) if it's already saved
+					if len(msgs) > 0 && msgs[len(msgs)-1].Text == p.Text {
+						history = msgs[:len(msgs)-1]
+					} else {
+						history = msgs
+					}
+				}
+
+				// Call LLM with Chat (history)
+				fmt.Printf("DEBUG: Chatting with history len=%d, input='%s'\n", len(history), p.Text)
+
+				reply, err := llm.Chat(history, p.Text)
+				fmt.Printf("DEBUG: LLM Reply: '%s', Err: %v\n", reply, err)
+
 				if err != nil {
+					fmt.Printf("LLM Error: %v\n", err) // Log error to console
 					send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": "llm error"}}
 					continue
+				}
+
+				// Check for [GENERATE_DOC] trigger
+				if strings.Contains(reply, "[GENERATE_DOC]") {
+					// Trigger doc generation
+					draft, err := draftService.CreateFromSession(p.SessionID, msgRepo)
+					if err != nil {
+						reply = "I tried to generate the document, but something went wrong: " + err.Error()
+					} else {
+						reply = fmt.Sprintf("I have generated the Business Analysis Document based on our conversation. You can download it here: /drafts/%d/download", draft.ID)
+						// Send special event
+						send <- map[string]interface{}{
+							"type": "doc_generated",
+							"payload": map[string]interface{}{
+								"draft_id":  draft.ID,
+								"file_path": draft.FilePath,
+								"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
+							},
+						}
+					}
 				}
 
 				// Save AI message to DB (if repo)
