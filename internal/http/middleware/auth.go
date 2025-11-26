@@ -19,12 +19,13 @@ const ctxUserKey ctxKey = "user"
 // Ожидает заголовок Authorization: Bearer <token>.
 // Токен сравнивается с AUTH_TOKEN из окружения.
 // Если AUTH_TOKEN пустой — авторизация отключена и запросы пропускаются.
-func AuthMiddleware() fiber.Handler {
+func AuthMiddleware(jwtSecret string) fiber.Handler {
 	expected := strings.TrimSpace(os.Getenv("AUTH_TOKEN"))
 	basicUser := strings.TrimSpace(os.Getenv("BASIC_USER"))
 	basicPass := os.Getenv("BASIC_PASS")
 	googleClientID := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
-	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+
+	// jwtSecret is passed as argument, no need to read from env
 
 	noAuthConfigured := expected == "" && basicUser == "" && googleClientID == "" && jwtSecret == ""
 
@@ -50,9 +51,24 @@ func AuthMiddleware() fiber.Handler {
 				identifier := "jwt_user"
 				if v, ok := claims["email"].(string); ok && v != "" {
 					identifier = v
-				} else if sub, ok := claims["sub"].(string); ok && sub != "" {
-					identifier = sub
 				}
+
+				// Try to get user_id from sub
+				if sub, ok := claims["sub"]; ok {
+					var uid uint
+					switch v := sub.(type) {
+					case float64:
+						uid = uint(v)
+					case int64:
+						uid = uint(v)
+					case int:
+						uid = uint(v)
+					}
+					if uid > 0 {
+						c.Locals("user_id", uid)
+					}
+				}
+
 				c.Locals("user", "local:"+identifier)
 				return c.Next()
 			}
@@ -110,4 +126,14 @@ func GetUser(c *fiber.Ctx) string {
 		}
 	}
 	return ""
+}
+
+// GetUserID — получить ID пользователя из Fiber контекста (если есть).
+func GetUserID(c *fiber.Ctx) uint {
+	if v := c.Locals("user_id"); v != nil {
+		if id, ok := v.(uint); ok {
+			return id
+		}
+	}
+	return 0
 }

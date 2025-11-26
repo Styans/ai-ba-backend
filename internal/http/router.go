@@ -7,17 +7,23 @@ import (
 	"ai-ba/internal/service"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
 )
 
 // NewRouter теперь принимает дополнительные зависимости для ws
-func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) *fiber.App {
+func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo, draftRepo *repository.DraftRepo, jwtSecret string) *fiber.App {
 	app := fiber.New()
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	authHandler := handlers.NewAuthHandler(authService)
 
 	// Public auth endpoints
-	// app.Post("/auth/register", authHandler.Register)
+	app.Post("/auth/register", authHandler.Register)
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/google", authHandler.LoginWithGoogle)
 
@@ -27,10 +33,16 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 	})
 
 	// Protected example endpoint
-	app.Get("/me", middleware.AuthMiddleware(), func(c *fiber.Ctx) error {
+	app.Get("/me", middleware.AuthMiddleware(jwtSecret), func(c *fiber.Ctx) error {
 		user := middleware.GetUser(c)
 		return c.JSON(fiber.Map{"user": user})
 	})
+
+	sessionHandler := handlers.NewSessionHandler(sessRepo)
+	app.Get("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.GetSessions)
+
+	draftHandler := handlers.NewDraftHandler(draftRepo)
+	app.Get("/drafts", middleware.AuthMiddleware(jwtSecret), draftHandler.GetDrafts)
 
 	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
 	// Если запрос не является WebSocket-upgrade — возвращаем понятный JSON вместо дефолтного 426.
@@ -56,7 +68,7 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 
 	// 2) Сам WS-обработчик
 	app.Get("/ws/agent", websocket.New(
-		NewWSHandler(llm, msgRepo, sessRepo),
+		NewWSHandler(llm, msgRepo, sessRepo, draftRepo, jwtSecret),
 	))
 
 	return app

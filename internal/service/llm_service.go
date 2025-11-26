@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/option"
@@ -14,9 +13,9 @@ type LLMService struct {
 	apiKey string
 }
 
-func NewLLMService() *LLMService {
+func NewLLMService(apiKey string) *LLMService {
 	return &LLMService{
-		apiKey: os.Getenv("AI_KEY"),
+		apiKey: apiKey,
 	}
 }
 
@@ -45,9 +44,10 @@ func (s *LLMService) Generate(prompt string) (string, error) {
 
 	model.SetTemperature(0.7)
 	model.SetMaxOutputTokens(1000000)
-	
+
 	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
 	if err != nil {
+		fmt.Printf("Gemini API error: %v\n", err)
 		return "", fmt.Errorf("Gemini API request failed: %w", err)
 	}
 

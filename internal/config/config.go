@@ -22,6 +22,11 @@ type Config struct {
 	BasicUser      string `yaml:"basic_user"`
 	BasicPass      string `yaml:"basic_pass"`
 
+	AI struct {
+		Provider string `yaml:"provider"`
+		APIKey   string `yaml:"api_key"`
+	} `yaml:"ai"`
+
 	// ...existing code...
 }
 
@@ -56,6 +61,6 @@ func LoadConfig(path string) (*Config, error) {
 	if v := os.Getenv("BASIC_PASS"); v != "" {
 		cfg.BasicPass = v
 	}
-	
+
 	return cfg, nil
 }

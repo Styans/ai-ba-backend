@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -36,8 +35,7 @@ type aiDonePayload struct {
 
 // NewWSHandler возвращает функцию-обработчик для websocket соединений.
 // Ожидается, что клиент подключается к /ws/agent?token=<jwt> или передаёт Authorization: Bearer <jwt>.
-func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) func(conn *websocket.Conn) {
-	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo, draftRepo *repository.DraftRepo, jwtSecret string) func(conn *websocket.Conn) {
 
 	return func(conn *websocket.Conn) {
 		defer conn.Close()
@@ -140,6 +138,8 @@ func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sess
 				if sessRepo != nil {
 					s := &models.Session{
 						UserID:    userID,
+						Title:     p.Title,
+						Status:    "reviewing",
 						CreatedAt: time.Now().Unix(),
 					}
 					if err := sessRepo.Create(s); err == nil {
@@ -167,11 +167,54 @@ func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sess
 					_ = msgRepo.Save(um)
 				}
 
+				// Prepare prompt with system instruction
+				systemPrompt := "SYSTEM: You are an AI assistant. If the user asks to create a document, report, or draft, you MUST return a JSON object with the following structure: {\"type\": \"create_document\", \"title\": \"Document Title\", \"content\": \"Markdown Content\"}. Do not wrap it in markdown code blocks. If it's a normal chat, just reply with text.\n\nUser: " + p.Text
+
 				// Call LLM synchronously (simple flow)
-				reply, err := llm.Generate(p.Text)
+				reply, err := llm.Generate(systemPrompt)
 				if err != nil {
-					send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": "llm error"}}
+					send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": fmt.Sprintf("llm error: %v", err)}}
 					continue
+				}
+
+				// Try to parse reply as JSON document creation
+				var docPayload struct {
+					Type    string `json:"type"`
+					Title   string `json:"title"`
+					Content string `json:"content"`
+				}
+
+				// Clean up potential markdown code blocks if LLM ignores instruction
+				cleanReply := strings.TrimSpace(reply)
+				cleanReply = strings.TrimPrefix(cleanReply, "```json")
+				cleanReply = strings.TrimPrefix(cleanReply, "```")
+				cleanReply = strings.TrimSuffix(cleanReply, "```")
+
+				if err := json.Unmarshal([]byte(cleanReply), &docPayload); err == nil && docPayload.Type == "create_document" {
+					// It's a document creation request
+					if draftRepo != nil {
+						draft := &models.Draft{
+							UserID:    userID,
+							Title:     docPayload.Title,
+							Content:   docPayload.Content,
+							CreatedAt: time.Now().Unix(),
+							UpdatedAt: time.Now().Unix(),
+						}
+						if err := draftRepo.Create(draft); err == nil {
+							// Notify frontend
+							send <- map[string]interface{}{
+								"type": "document_created",
+								"payload": map[string]interface{}{
+									"draft_id": draft.ID,
+									"title":    draft.Title,
+								},
+							}
+							// Also save a message saying document was created
+							reply = fmt.Sprintf("I've created a document for you: %s", draft.Title)
+						} else {
+							reply = "Failed to save document."
+						}
+					}
 				}
 
 				// Save AI message to DB (if repo)
