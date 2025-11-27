@@ -69,6 +69,14 @@ func AuthMiddleware(jwtSecret string) fiber.Handler {
 					}
 				}
 
+				if role, ok := claims["role"].(string); ok {
+					c.Locals("user_role", role)
+				}
+
+				if name, ok := claims["name"].(string); ok {
+					c.Locals("user_name", name)
+				}
+
 				c.Locals("user", "local:"+identifier)
 				return c.Next()
 			}
@@ -136,4 +144,24 @@ func GetUserID(c *fiber.Ctx) uint {
 		}
 	}
 	return 0
+}
+
+// GetUserRole — получить роль пользователя из Fiber контекста.
+func GetUserRole(c *fiber.Ctx) string {
+	if v := c.Locals("user_role"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// GetUserName — получить имя пользователя из Fiber контекста.
+func GetUserName(c *fiber.Ctx) string {
+	if v := c.Locals("user_name"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }

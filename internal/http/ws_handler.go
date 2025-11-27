@@ -168,7 +168,13 @@ func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sess
 				}
 
 				// Prepare prompt with system instruction
-				systemPrompt := "SYSTEM: You are an AI assistant. If the user asks to create a document, report, or draft, you MUST return a JSON object with the following structure: {\"type\": \"create_document\", \"title\": \"Document Title\", \"content\": \"Markdown Content\"}. Do not wrap it in markdown code blocks. If it's a normal chat, just reply with text.\n\nUser: " + p.Text
+				systemPrompt := "SYSTEM: You are an AI Business Analyst. \n" +
+					"If the user asks to create a document, return JSON: {\"type\": \"create_document\", \"title\": \"Title\", \"content\": \"Markdown Content\"}.\n" +
+					"If the user asks to edit/update an existing document, return JSON: {\"type\": \"update_document\", \"title\": \"Title\", \"content\": \"Updated Markdown Content\"}.\n" +
+					"If you need to gather detailed information from the user (e.g. for requirements gathering), return JSON: {\"type\": \"questionnaire\", \"questions\": [{\"id\": \"1\", \"text\": \"Question?\"}]}.\n" +
+					"IMPORTANT: Return ONLY valid JSON. Do not wrap in markdown code blocks. Check for syntax errors (e.g. missing quotes, commas). \n" +
+					"For normal chat, just reply with text.\n" +
+					"User: " + p.Text
 
 				// Call LLM synchronously (simple flow)
 				reply, err := llm.Generate(systemPrompt)
@@ -179,57 +185,134 @@ func NewWSHandler(llm *service.LLMService, msgRepo *repository.MessageRepo, sess
 
 				// Try to parse reply as JSON document creation
 				var docPayload struct {
-					Type    string `json:"type"`
-					Title   string `json:"title"`
-					Content string `json:"content"`
+					Type      string `json:"type"`
+					Title     string `json:"title"`
+					Content   string `json:"content"`
+					Questions []struct {
+						ID   string `json:"id"`
+						Text string `json:"text"`
+					} `json:"questions"`
 				}
 
 				// Clean up potential markdown code blocks if LLM ignores instruction
 				cleanReply := strings.TrimSpace(reply)
-				cleanReply = strings.TrimPrefix(cleanReply, "```json")
-				cleanReply = strings.TrimPrefix(cleanReply, "```")
-				cleanReply = strings.TrimSuffix(cleanReply, "```")
+				// More robust JSON extraction: find first '{' and last '}'
+				start := strings.Index(cleanReply, "{")
+				end := strings.LastIndex(cleanReply, "}")
 
-				if err := json.Unmarshal([]byte(cleanReply), &docPayload); err == nil && docPayload.Type == "create_document" {
-					// It's a document creation request
-					if draftRepo != nil {
-						draft := &models.Draft{
-							UserID:    userID,
-							Title:     docPayload.Title,
-							Content:   docPayload.Content,
-							CreatedAt: time.Now().Unix(),
-							UpdatedAt: time.Now().Unix(),
-						}
-						if err := draftRepo.Create(draft); err == nil {
-							// Notify frontend
-							send <- map[string]interface{}{
-								"type": "document_created",
-								"payload": map[string]interface{}{
-									"draft_id": draft.ID,
-									"title":    draft.Title,
-								},
+				isJSON := false
+				if start != -1 && end != -1 && end > start {
+					jsonStr := cleanReply[start : end+1]
+					if err := json.Unmarshal([]byte(jsonStr), &docPayload); err == nil {
+						isJSON = true
+					}
+				}
+
+				if isJSON {
+					if docPayload.Type == "create_document" || docPayload.Type == "update_document" {
+						if draftRepo != nil {
+							// Check if a draft already exists for this session
+							existingDraft, err := draftRepo.GetBySessionID(p.SessionID)
+
+							if err == nil && existingDraft != nil {
+								// UPDATE existing draft
+								existingDraft.Title = docPayload.Title
+								existingDraft.Content = docPayload.Content
+								existingDraft.UpdatedAt = time.Now().Unix()
+
+								if err := draftRepo.Update(existingDraft); err == nil {
+									send <- map[string]interface{}{
+										"type": "document_created", // We keep this type for frontend compatibility for now
+										"payload": map[string]interface{}{
+											"draft_id":   existingDraft.ID,
+											"session_id": existingDraft.SessionID,
+											"title":      existingDraft.Title,
+										},
+									}
+									reply = fmt.Sprintf("I've updated the document: %s", existingDraft.Title)
+								} else {
+									reply = "Failed to update document."
+								}
+							} else {
+								// CREATE new draft
+								draft := &models.Draft{
+									UserID:    userID,
+									SessionID: p.SessionID,
+									Title:     docPayload.Title,
+									Content:   docPayload.Content,
+									CreatedAt: time.Now().Unix(),
+									UpdatedAt: time.Now().Unix(),
+								}
+								if err := draftRepo.Create(draft); err == nil {
+									// Update Session Title if it's "New Project" or generic
+									// We can just always update it to match the main document of the session
+									if sessRepo != nil {
+										session, err := sessRepo.GetByID(p.SessionID)
+										if err == nil && (session.Title == "New Project" || session.Title == "") {
+											session.Title = draft.Title
+											_ = sessRepo.Update(session)
+										}
+									}
+
+									send <- map[string]interface{}{
+										"type": "document_created",
+										"payload": map[string]interface{}{
+											"draft_id":   draft.ID,
+											"session_id": draft.SessionID,
+											"title":      draft.Title,
+										},
+									}
+									reply = fmt.Sprintf("I've created a document for you: %s", draft.Title)
+								} else {
+									reply = "Failed to save document."
+								}
 							}
-							// Also save a message saying document was created
-							reply = fmt.Sprintf("I've created a document for you: %s", draft.Title)
-						} else {
-							reply = "Failed to save document."
 						}
-					}
-				}
+						// Send ai_done with the reply text
+						send <- map[string]interface{}{"type": "ai_done", "payload": aiDonePayload{Text: reply}}
 
-				// Save AI message to DB (if repo)
-				if msgRepo != nil {
-					am := &models.Message{
-						SessionID: p.SessionID,
-						Author:    "ai",
-						Text:      reply,
-						CreatedAt: time.Now().Unix(), // Unix int64
-					}
-					_ = msgRepo.Save(am)
-				}
+					} else if docPayload.Type == "questionnaire" {
+						// Handle questionnaire
+						send <- map[string]interface{}{
+							"type": "questionnaire",
+							"payload": map[string]interface{}{
+								"questions": docPayload.Questions,
+							},
+						}
 
-				// Send ai_done
-				send <- map[string]interface{}{"type": "ai_done", "payload": aiDonePayload{Text: reply}}
+						// Save AI message to DB with FULL JSON content so we can restore it
+						if msgRepo != nil {
+							// Serialize questions to JSON
+							qBytes, _ := json.Marshal(docPayload.Questions)
+							// We use a special prefix to identify this as a questionnaire in history
+							storedText := "[QUESTIONNAIRE_JSON]" + string(qBytes)
+
+							am := &models.Message{
+								SessionID: p.SessionID,
+								Author:    "ai",
+								Text:      storedText,
+								CreatedAt: time.Now().Unix(),
+							}
+							_ = msgRepo.Save(am)
+						}
+						continue // Skip the default ai_done at the bottom
+					}
+				} else {
+					// Not JSON, just normal text
+					// Save AI message to DB (if repo)
+					if msgRepo != nil {
+						am := &models.Message{
+							SessionID: p.SessionID,
+							Author:    "ai",
+							Text:      reply,
+							CreatedAt: time.Now().Unix(), // Unix int64
+						}
+						_ = msgRepo.Save(am)
+					}
+
+					// Send ai_done
+					send <- map[string]interface{}{"type": "ai_done", "payload": aiDonePayload{Text: reply}}
+				}
 
 			default:
 				send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": "unknown message type"}}

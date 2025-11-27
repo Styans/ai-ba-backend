@@ -3,6 +3,7 @@ package models
 type Draft struct {
 	ID        uint   `gorm:"primaryKey"`
 	UserID    uint   `json:"user_id"`
+	SessionID uint   `json:"session_id"`
 	Title     string `json:"title"`
 	Content   string `json:"content"`
 	CreatedAt int64  `json:"created_at"`

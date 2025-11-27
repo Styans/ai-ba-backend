@@ -16,6 +16,10 @@ func (r *SessionRepo) Create(s *models.Session) error {
 	return r.db.Create(s).Error
 }
 
+func (r *SessionRepo) Update(s *models.Session) error {
+	return r.db.Save(s).Error
+}
+
 func (r *SessionRepo) GetByID(id uint) (*models.Session, error) {
 	var s models.Session
 	if err := r.db.First(&s, id).Error; err != nil {
@@ -30,4 +34,11 @@ func (r *SessionRepo) ListByUser(userID uint) ([]models.Session, error) {
 		return nil, err
 	}
 	return list, nil
+}
+func (r *SessionRepo) DeleteAllByUser(userID uint) error {
+	return r.db.Where("user_id = ?", userID).Delete(&models.Session{}).Error
+}
+
+func (r *SessionRepo) Delete(id uint) error {
+	return r.db.Delete(&models.Session{}, id).Error
 }

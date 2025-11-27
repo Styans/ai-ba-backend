@@ -32,7 +32,7 @@ func NewAuthService(ur *repository.UserRepo, jwtSecret string) *AuthService {
 	}
 }
 
-func (s *AuthService) Register(email, password, name string) (string, error) {
+func (s *AuthService) CreateUser(email, password, name, role string) (string, error) {
 	// check exists
 	if _, err := s.users.FindByEmail(email); err == nil {
 		return "", errors.New("user already exists")
@@ -46,6 +46,7 @@ func (s *AuthService) Register(email, password, name string) (string, error) {
 		PasswordHash: string(hash),
 		Name:         name,
 		Provider:     "local",
+		Role:         role,
 	}
 	if err := s.users.Create(u); err != nil {
 		return "", err
@@ -107,6 +108,7 @@ func (s *AuthService) GenerateToken(u *models.User) (string, error) {
 		"sub":   u.ID,
 		"email": u.Email,
 		"name":  u.Name,
+		"role":  u.Role,
 		"exp":   time.Now().Add(s.tokenTTL).Unix(),
 		"iat":   time.Now().Unix(),
 	}

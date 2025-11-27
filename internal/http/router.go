@@ -5,6 +5,7 @@ import (
 	"ai-ba/internal/http/middleware"
 	"ai-ba/internal/repository"
 	"ai-ba/internal/service"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -12,7 +13,7 @@ import (
 )
 
 // NewRouter теперь принимает дополнительные зависимости для ws
-func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo, draftRepo *repository.DraftRepo, jwtSecret string) *fiber.App {
+func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo, draftRepo *repository.DraftRepo, teamMsgRepo *repository.TeamMessageRepo, userRepo *repository.UserRepo, hub *Hub, jwtSecret string) *fiber.App {
 	app := fiber.New()
 
 	app.Use(cors.New(cors.Config{
@@ -23,9 +24,14 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 	authHandler := handlers.NewAuthHandler(authService)
 
 	// Public auth endpoints
-	app.Post("/auth/register", authHandler.Register)
+	// Public auth endpoints
+	// Registration disabled for public
+	// app.Post("/auth/register", authHandler.Register)
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/google", authHandler.LoginWithGoogle)
+
+	// Admin endpoints
+	app.Post("/api/admin/users", middleware.AuthMiddleware(jwtSecret), authHandler.CreateUser)
 
 	// Health
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -34,41 +40,69 @@ func NewRouter(authService *service.AuthService, llm *service.LLMService, msgRep
 
 	// Protected example endpoint
 	app.Get("/me", middleware.AuthMiddleware(jwtSecret), func(c *fiber.Ctx) error {
-		user := middleware.GetUser(c)
+		// Construct user from claims
+		user := map[string]interface{}{
+			"id":    middleware.GetUserID(c),
+			"email": strings.TrimPrefix(middleware.GetUser(c), "local:"), // simple hack, better to store email separately
+			"name":  middleware.GetUserName(c),
+			"role":  middleware.GetUserRole(c),
+		}
 		return c.JSON(fiber.Map{"user": user})
 	})
 
-	sessionHandler := handlers.NewSessionHandler(sessRepo)
+	// List users for Team Chat
+	app.Get("/api/users", middleware.AuthMiddleware(jwtSecret), func(c *fiber.Ctx) error {
+		currentUserID := middleware.GetUserID(c)
+		users, err := userRepo.GetAll()
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
+		}
+
+		// Filter out current user
+		otherUsers := make([]map[string]interface{}, 0)
+		for _, u := range users {
+			if u.ID != currentUserID {
+				otherUsers = append(otherUsers, map[string]interface{}{
+					"id":    u.ID,
+					"name":  u.Name,
+					"email": u.Email,
+				})
+			}
+		}
+		return c.JSON(otherUsers)
+	})
+
+	sessionHandler := handlers.NewSessionHandler(sessRepo, msgRepo)
 	app.Get("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.GetSessions)
+	app.Post("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.CreateSession)
+	app.Delete("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.ClearSessions)
+	app.Delete("/sessions/:id", middleware.AuthMiddleware(jwtSecret), sessionHandler.DeleteSession)
+	app.Get("/sessions/:id/messages", middleware.AuthMiddleware(jwtSecret), sessionHandler.GetMessages)
 
 	draftHandler := handlers.NewDraftHandler(draftRepo)
 	app.Get("/drafts", middleware.AuthMiddleware(jwtSecret), draftHandler.GetDrafts)
+	app.Delete("/drafts", middleware.AuthMiddleware(jwtSecret), draftHandler.ClearDrafts)
+	app.Delete("/drafts/:id", middleware.AuthMiddleware(jwtSecret), draftHandler.DeleteDraft)
 
-	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
-	// Если запрос не является WebSocket-upgrade — возвращаем понятный JSON вместо дефолтного 426.
-	app.Use("/ws/agent", func(c *fiber.Ctx) error {
+	// WebSocket endpoint (agent)
+	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
-			// забираем токен из заголовка и/или query
-			authHeader := c.Get("Authorization") // "Bearer xxx"
-			queryToken := c.Query("token")       // ?token=xxx
-
-			// сохраняем в Locals, они попадут в websocket.Conn
+			authHeader := c.Get("Authorization")
+			queryToken := c.Query("token")
 			c.Locals("authHeader", authHeader)
 			c.Locals("queryToken", queryToken)
-
 			return c.Next()
 		}
-
-		c.Status(fiber.StatusUpgradeRequired)
-		return c.JSON(fiber.Map{
-			"error":   "Upgrade Required",
-			"message": "This endpoint requires a WebSocket upgrade. Connect with ws:// or wss://...",
-		})
+		return c.Next()
 	})
 
-	// 2) Сам WS-обработчик
 	app.Get("/ws/agent", websocket.New(
 		NewWSHandler(llm, msgRepo, sessRepo, draftRepo, jwtSecret),
+	))
+
+	// WebSocket endpoint (team)
+	app.Get("/ws/team", websocket.New(
+		NewTeamWSHandler(hub, teamMsgRepo, jwtSecret),
 	))
 
 	return app

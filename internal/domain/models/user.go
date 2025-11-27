@@ -9,6 +9,7 @@ type User struct {
 	Name         string    `json:"name"`
 	Provider     string    `json:"provider"`    // "local" или "google"
 	ProviderID   string    `json:"provider_id"` // id from provider
+	Role         string    `json:"role"`        // "Business Analyst", "Developer", etc.
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
