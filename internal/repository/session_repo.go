@@ -31,3 +31,11 @@ func (r *SessionRepo) ListByUser(userID uint) ([]models.Session, error) {
 	}
 	return list, nil
 }
+
+func (r *SessionRepo) DeleteAllByUser(userID uint) error {
+	return r.db.Where("user_id = ?", userID).Delete(&models.Session{}).Error
+}
+
+func (r *SessionRepo) Delete(id uint) error {
+	return r.db.Delete(&models.Session{}, id).Error
+}

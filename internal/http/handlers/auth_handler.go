@@ -7,62 +7,82 @@ import (
 )
 
 type AuthHandler struct {
-	auth *service.AuthService
+	service *service.AuthService
 }
 
-func NewAuthHandler(a *service.AuthService) *AuthHandler { return &AuthHandler{auth: a} }
-
-type registerReq struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-}
-
-type loginReq struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type googleReq struct {
-	IDToken string `json:"id_token"`
-}
-
-type tokenResp struct {
-	Token string `json:"token"`
+func NewAuthHandler(service *service.AuthService) *AuthHandler {
+	return &AuthHandler{service: service}
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
-	var req registerReq
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("bad request")
+	var p struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Name     string `json:"name"`
 	}
-	tok, err := h.auth.Register(req.Email, req.Password, req.Name)
+	if err := c.BodyParser(&p); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("invalid json")
+	}
+
+	token, err := h.service.Register(p.Email, p.Password, p.Name)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
-	return c.JSON(tokenResp{Token: tok})
+
+	return c.JSON(fiber.Map{"token": token})
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
-	var req loginReq
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("bad request")
+	var p struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
-	tok, err := h.auth.Login(req.Email, req.Password)
+	if err := c.BodyParser(&p); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("invalid json")
+	}
+
+	token, err := h.service.Login(p.Email, p.Password)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
 	}
-	return c.JSON(tokenResp{Token: tok})
+
+	return c.JSON(fiber.Map{"token": token})
 }
 
 func (h *AuthHandler) LoginWithGoogle(c *fiber.Ctx) error {
-	var req googleReq
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).SendString("bad request")
+	var p struct {
+		IDToken string `json:"idToken"`
 	}
-	tok, err := h.auth.LoginWithGoogle(c.Context(), req.IDToken)
+	if err := c.BodyParser(&p); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("invalid json")
+	}
+
+	token, err := h.service.LoginWithGoogle(c.Context(), p.IDToken)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).SendString(err.Error())
 	}
-	return c.JSON(tokenResp{Token: tok})
+
+	return c.JSON(fiber.Map{"token": token})
+}
+
+func (h *AuthHandler) CreateUser(c *fiber.Ctx) error {
+	// Admin only? Middleware handles auth, but maybe check role here?
+	// For now just implement the call.
+
+	var p struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Name     string `json:"name"`
+		Role     string `json:"role"`
+	}
+	if err := c.BodyParser(&p); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("invalid json")
+	}
+
+	token, err := h.service.CreateUser(p.Email, p.Password, p.Name, p.Role)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
+	}
+
+	return c.JSON(fiber.Map{"token": token, "message": "user created"})
 }

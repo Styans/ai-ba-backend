@@ -7,6 +7,7 @@ type User struct {
 	Email        string    `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash string    `json:"-"`
 	Name         string    `json:"name"`
+	Role         string    `json:"role"`        // "User", "Business Analyst", "Admin"
 	Provider     string    `json:"provider"`    // "local" или "google"
 	ProviderID   string    `json:"provider_id"` // id from provider
 	CreatedAt    time.Time `json:"created_at"`

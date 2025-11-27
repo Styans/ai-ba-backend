@@ -6,6 +6,8 @@ import (
 
 type Draft struct {
 	ID                uint      `gorm:"primaryKey" json:"id"`
+	UserID            uint      `json:"user_id"`
+	SessionID         uint      `json:"session_id"`
 	Title             string    `json:"title"`
 	Content           string    `json:"content"` // Raw text or summary
 	Status            string    `json:"status"`  // PENDING, APPROVED, REJECTED

@@ -191,39 +191,88 @@ func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, m
 					continue
 				}
 
-				// Check for [GENERATE_DOC] trigger
-				if strings.Contains(reply, "[GENERATE_DOC]") {
-					// Trigger doc generation
-					draft, err := draftService.CreateFromSession(p.SessionID, msgRepo)
-					if err != nil {
-						reply = "I tried to generate the document, but something went wrong: " + err.Error()
-					} else {
-						reply = fmt.Sprintf("I have generated the Business Analysis Document based on our conversation. You can download it here: /drafts/%d/download", draft.ID)
-						// Send special event
-						send <- map[string]interface{}{
-							"type": "doc_generated",
-							"payload": map[string]interface{}{
-								"draft_id":  draft.ID,
-								"file_path": draft.FilePath,
-								"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
-							},
+				// Try to parse reply as JSON
+				cleanReply := strings.TrimSpace(reply)
+				cleanReply = strings.TrimPrefix(cleanReply, "```json")
+				cleanReply = strings.TrimPrefix(cleanReply, "```")
+				cleanReply = strings.TrimSuffix(cleanReply, "```")
+
+				var jsonReply struct {
+					Type string `json:"type"`
+				}
+
+				if err := json.Unmarshal([]byte(cleanReply), &jsonReply); err == nil && (jsonReply.Type == "questionnaire" || jsonReply.Type == "requirements") {
+					// Handle JSON response
+					var rawPayload map[string]interface{}
+					_ = json.Unmarshal([]byte(cleanReply), &rawPayload)
+					send <- rawPayload
+
+					// Save AI message to DB (as JSON)
+					if msgRepo != nil {
+						am := &models.Message{
+							SessionID: p.SessionID,
+							Author:    "ai",
+							Text:      cleanReply,
+							CreatedAt: time.Now().Unix(),
+						}
+						_ = msgRepo.Save(am)
+					}
+
+					// If requirements, generate document
+					if jsonReply.Type == "requirements" {
+						var smartData service.SmartAnalysisData
+						if err := json.Unmarshal([]byte(cleanReply), &smartData); err == nil {
+							draft, err := draftService.CreateFromSmartData(p.SessionID, userID, &smartData)
+							if err == nil {
+								send <- map[string]interface{}{
+									"type": "doc_generated",
+									"payload": map[string]interface{}{
+										"draft_id":  draft.ID,
+										"file_path": draft.FilePath,
+										"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
+									},
+								}
+							} else {
+								fmt.Printf("Failed to generate doc: %v\n", err)
+							}
 						}
 					}
-				}
-
-				// Save AI message to DB (if repo)
-				if msgRepo != nil {
-					am := &models.Message{
-						SessionID: p.SessionID,
-						Author:    "ai",
-						Text:      reply,
-						CreatedAt: time.Now().Unix(), // Unix int64
+				} else {
+					// Fallback to text (or legacy [GENERATE_DOC])
+					// Check for [GENERATE_DOC] trigger
+					if strings.Contains(reply, "[GENERATE_DOC]") {
+						// Trigger doc generation (Legacy)
+						draft, err := draftService.CreateFromSession(p.SessionID, userID, msgRepo)
+						if err != nil {
+							reply = "I tried to generate the document, but something went wrong: " + err.Error()
+						} else {
+							reply = fmt.Sprintf("I have generated the Business Analysis Document based on our conversation. You can download it here: /drafts/%d/download", draft.ID)
+							// Send special event
+							send <- map[string]interface{}{
+								"type": "doc_generated",
+								"payload": map[string]interface{}{
+									"draft_id":  draft.ID,
+									"file_path": draft.FilePath,
+									"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
+								},
+							}
+						}
 					}
-					_ = msgRepo.Save(am)
-				}
 
-				// Send ai_done
-				send <- map[string]interface{}{"type": "ai_done", "payload": aiDonePayload{Text: reply}}
+					// Save AI message to DB
+					if msgRepo != nil {
+						am := &models.Message{
+							SessionID: p.SessionID,
+							Author:    "ai",
+							Text:      reply,
+							CreatedAt: time.Now().Unix(), // Unix int64
+						}
+						_ = msgRepo.Save(am)
+					}
+
+					// Send ai_done
+					send <- map[string]interface{}{"type": "ai_done", "payload": aiDonePayload{Text: reply}}
+				}
 
 			default:
 				send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": "unknown message type"}}

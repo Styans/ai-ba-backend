@@ -109,6 +109,48 @@ func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (str
 	return path, nil
 }
 
+func (s *DocService) GenerateSmartBADocument(data SmartAnalysisData, filename string) (string, error) {
+	f := docx.NewFile()
+
+	// Title
+	p := f.AddParagraph()
+	p.AddText("Business Analysis Report (SMART)").Size(24)
+
+	// Meta
+	f.AddParagraph().AddText(fmt.Sprintf("Generated on: %s", time.Now().Format(time.RFC1123)))
+
+	// Summary
+	s.addSection(f, "Executive Summary", data.Summary)
+
+	// SMART Requirements
+	f.AddParagraph().AddText("SMART Requirements").Size(16)
+	f.AddParagraph().AddText("Specific: " + data.SmartRequirements.Specific)
+	f.AddParagraph().AddText("Measurable: " + data.SmartRequirements.Measurable)
+	f.AddParagraph().AddText("Achievable: " + data.SmartRequirements.Achievable)
+	f.AddParagraph().AddText("Relevant: " + data.SmartRequirements.Relevant)
+	f.AddParagraph().AddText("Time-bound: " + data.SmartRequirements.TimeBound)
+	f.AddParagraph()
+
+	// Q&A History
+	f.AddParagraph().AddText("Interview Transcript").Size(16)
+	for _, q := range data.Questions {
+		f.AddParagraph().AddText(fmt.Sprintf("Step %d: %s", q.Step, q.Question)).Size(12)
+		f.AddParagraph().AddText("Answer: " + q.Answer)
+		f.AddParagraph()
+	}
+
+	// Save
+	if err := os.MkdirAll("storage", 0755); err != nil {
+		return "", fmt.Errorf("failed to create storage dir: %w", err)
+	}
+	path := fmt.Sprintf("./storage/%s", filename)
+	if err := f.Save(path); err != nil {
+		return "", err
+	}
+
+	return path, nil
+}
+
 func (s *DocService) addSection(f *docx.File, title, content string) {
 	f.AddParagraph().AddText(title).Size(16)
 	f.AddParagraph().AddText(content)
