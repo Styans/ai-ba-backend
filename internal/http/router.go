@@ -94,6 +94,9 @@ func NewRouter(
 	drafts.Get("/:id/download", draftHandler.Download)
 	drafts.Post("/:id/approve", draftHandler.Approve)
 
+	// Business Requests Endpoint
+	app.Get("/api/requests", middleware.AuthMiddleware(), draftHandler.GetBusinessRequests)
+
 	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
 	app.Use("/ws/agent", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {

@@ -40,9 +40,13 @@ type SmartRequirements struct {
 }
 
 type SmartAnalysisData struct {
-	Questions         []QuestionPair    `json:"questions"`
-	SmartRequirements SmartRequirements `json:"smart_requirements"`
-	Summary           string            `json:"summary"`
+	Answers           []map[string]interface{} `json:"answers"` // Flexible to handle various formats
+	SmartRequirements SmartRequirements        `json:"smart_requirements"`
+	Summary           string                   `json:"summary"`
+	Confluence        struct {
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	} `json:"confluence"`
 }
 
 func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (string, error) {
@@ -133,9 +137,23 @@ func (s *DocService) GenerateSmartBADocument(data SmartAnalysisData, filename st
 
 	// Q&A History
 	f.AddParagraph().AddText("Interview Transcript").Size(16)
-	for _, q := range data.Questions {
-		f.AddParagraph().AddText(fmt.Sprintf("Step %d: %s", q.Step, q.Question)).Size(12)
-		f.AddParagraph().AddText("Answer: " + q.Answer)
+	for i, ans := range data.Answers {
+		qText := ""
+		if v, ok := ans["question"].(string); ok {
+			qText = v
+		} else if v, ok := ans["question_id"].(string); ok {
+			qText = fmt.Sprintf("Question ID: %s", v)
+		} else {
+			qText = fmt.Sprintf("Question #%d", i+1)
+		}
+
+		aText := ""
+		if v, ok := ans["answer"].(string); ok {
+			aText = v
+		}
+
+		f.AddParagraph().AddText(fmt.Sprintf("Q: %s", qText)).Size(12)
+		f.AddParagraph().AddText("A: " + aText)
 		f.AddParagraph()
 	}
 

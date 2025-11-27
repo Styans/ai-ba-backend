@@ -57,7 +57,6 @@ func (h *DraftHandler) List(c *fiber.Ctx) error {
 	if userID == 0 {
 		return c.Status(fiber.StatusUnauthorized).SendString("unauthorized")
 	}
-
 	drafts, err := h.service.ListByUser(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
@@ -77,6 +76,25 @@ func (h *DraftHandler) ClearDrafts(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusOK)
+}
+
+func (h *DraftHandler) GetBusinessRequests(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		return c.Status(fiber.StatusUnauthorized).SendString("unauthorized")
+	}
+
+	role := ""
+	if v := c.Locals("user_role"); v != nil {
+		role = v.(string)
+	}
+
+	resp, err := h.service.GetBusinessRequests(userID, role)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(resp)
 }
 
 func (h *DraftHandler) DeleteDraft(c *fiber.Ctx) error {

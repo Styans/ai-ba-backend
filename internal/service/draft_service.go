@@ -164,3 +164,47 @@ func (s *DraftService) CreateFromSmartData(sessionID uint, userID uint, data *Sm
 
 	return draft, nil
 }
+
+type BusinessRequestsResponse struct {
+	Reviewing []models.Draft `json:"reviewing"`
+	Accepted  []models.Draft `json:"accepted"`
+	Rejected  []models.Draft `json:"rejected"`
+}
+
+func (s *DraftService) GetBusinessRequests(userID uint, role string) (*BusinessRequestsResponse, error) {
+	var drafts []models.Draft
+	var err error
+
+	// Admin/BA sees all, User sees own
+	if role == "Business Analyst" || role == "admin" {
+		drafts, err = s.repo.List(0, 1000) // Fetch all (with limit)
+	} else {
+		drafts, err = s.repo.ListByUser(userID)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &BusinessRequestsResponse{
+		Reviewing: []models.Draft{},
+		Accepted:  []models.Draft{},
+		Rejected:  []models.Draft{},
+	}
+
+	for _, d := range drafts {
+		switch d.Status {
+		case "PENDING":
+			resp.Reviewing = append(resp.Reviewing, d)
+		case "APPROVED":
+			resp.Accepted = append(resp.Accepted, d)
+		case "REJECTED":
+			resp.Rejected = append(resp.Rejected, d)
+		default:
+			// Treat unknown as reviewing/pending for now, or ignore
+			resp.Reviewing = append(resp.Reviewing, d)
+		}
+	}
+
+	return resp, nil
+}

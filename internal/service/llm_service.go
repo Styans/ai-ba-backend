@@ -181,22 +181,6 @@ func (s *LLMService) ExtractDataFromChat(history []string) (*AnalysisData, error
 	return s.AnalyzeRequest(prompt) // Reuse the existing parsing logic
 }
 
-func (s *LLMService) AnalyzeSmartRequest(prompt string) (*SmartAnalysisData, error) {
-	jsonStr, err := s.Generate(prompt)
-	if err != nil {
-		return nil, err
-	}
-
-	jsonStr = cleanJSON(jsonStr)
-
-	var data SmartAnalysisData
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-		return nil, fmt.Errorf("failed to parse LLM JSON: %w\nResponse: %s", err, jsonStr)
-	}
-
-	return &data, nil
-}
-
 func cleanJSON(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "```json")
