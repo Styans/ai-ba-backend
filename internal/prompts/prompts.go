@@ -494,7 +494,7 @@ RULES:
 - Wait for the user to answer ALL questions of the current stage before moving to the next.
 `
 
-	ChatSystemPrompt = ChatSystemPromptv2
+	ChatSystemPrompt = ChatSystemPromptv3
 
 	// AnalysisPromptTemplate is used for analyzing a single user request.
 	AnalysisPromptTemplate = `
