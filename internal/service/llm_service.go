@@ -2,6 +2,7 @@ package service
 
 import (
 	"ai-ba/internal/domain/models"
+	"ai-ba/internal/prompts"
 	"context"
 	"encoding/json"
 	"errors"
@@ -74,22 +75,7 @@ func (s *LLMService) Generate(prompt string) (string, error) {
 }
 
 func (s *LLMService) AnalyzeRequest(userReq string) (*AnalysisData, error) {
-	prompt := fmt.Sprintf(`
-You are an expert Business Analyst. Analyze the following user request and generate a structured Business Analysis Report.
-Return ONLY valid JSON (no markdown formatting, no backticks) with the following structure:
-{
-	"goal": "Goal statement formulated according to SMART criteria (Specific, Measurable, Achievable, Relevant, Time-bound)",
-	"description": "Detailed description",
-	"scope": "In/Out of scope",
-	"business_rules": ["Rule 1", "Rule 2"],
-	"kpis": ["KPI 1", "KPI 2"],
-	"use_cases": ["Use Case 1", "Use Case 2"],
-	"user_stories": ["As a... I want to... So that..."],
-	"diagrams_desc": ["Description of a flowchart", "Description of a sequence diagram"]
-}
-
-User Request: %s
-`, userReq)
+	prompt := fmt.Sprintf(prompts.AnalysisPromptTemplate, userReq)
 
 	jsonStr, err := s.Generate(prompt)
 	if err != nil {
@@ -124,63 +110,7 @@ func (s *LLMService) Chat(history []models.Message, userInput string) (string, e
 	model.SetTemperature(0.7)
 
 	// System Prompt
-	systemPrompt := `
-You are an intelligent business assistant. Your goal is to gather requirements via a strict 5-stage questionnaire.
-After the user's initial request, you must start the process.
-
-STAGES (5 questions each):
-1. Goal of the Request
-2. Target Audience & User Roles
-3. Business Process & Constraints
-4. Expected Results & KPIs
-5. Technical Requirements & Integrations
-
-PROTOCOL:
-1. Receive user request.
-2. Send Stage 1 questions (JSON).
-3. Wait for answers.
-4. Send Stage 2 questions (JSON).
-...
-5. After Stage 5 answers, send Final Requirements (JSON).
-
-OUTPUT FORMATS (Strict JSON ONLY, no markdown, no other text):
-
-TYPE 1: QUESTIONNAIRE (Stages 1-5)
-{
-  "type": "questionnaire",
-  "stage": <1-5>,
-  "title": "<Stage Title>",
-  "questions": [
-    { "id": "q1", "text": "Question 1" },
-    { "id": "q2", "text": "Question 2" },
-    { "id": "q3", "text": "Question 3" },
-    { "id": "q4", "text": "Question 4" },
-    { "id": "q5", "text": "Question 5" }
-  ]
-}
-
-TYPE 2: REQUIREMENTS (Final)
-{
-  "type": "requirements",
-  "smart_requirements": {
-    "specific": "...",
-    "measurable": "...",
-    "achievable": "...",
-    "relevant": "...",
-    "time_bound": "..."
-  },
-  "summary": "Brief task description",
-  "answers": [
-    { "step": 1, "question": "...", "answer": "..." },
-    ...
-  ]
-}
-
-RULES:
-- Do NOT output markdown code blocks (like ` + "`" + `json ... ` + "`" + `). Output raw JSON string.
-- Do NOT add any conversational text (e.g., "Here is the next stage"). ONLY JSON.
-- Wait for the user to answer ALL questions of the current stage before moving to the next.
-`
+	systemPrompt := prompts.ChatSystemPrompt
 
 	cs := model.StartChat()
 	cs.History = []*genai.Content{
@@ -246,24 +176,7 @@ func (s *LLMService) ExtractDataFromChat(history []string) (*AnalysisData, error
 	// Join history into a single transcript
 	transcript := strings.Join(history, "\n")
 
-	prompt := fmt.Sprintf(`
-Analyze the following conversation transcript between a User and a Business Analyst.
-Extract all requirements and generate a structured Business Analysis Report.
-Return ONLY valid JSON (no markdown) with this structure:
-{
-	"goal": "...",
-	"description": "...",
-	"scope": "...",
-	"business_rules": [...],
-	"kpis": [...],
-	"use_cases": [...],
-	"user_stories": [...],
-	"diagrams_desc": [...]
-}
-
-Transcript:
-%s
-`, transcript)
+	prompt := fmt.Sprintf(prompts.TranscriptAnalysisPromptTemplate, transcript)
 
 	return s.AnalyzeRequest(prompt) // Reuse the existing parsing logic
 }
@@ -288,28 +201,7 @@ func (s *LLMService) AnalyzeSmartRequest(prompt string) (*SmartAnalysisData, err
 func (s *LLMService) ExtractSmartDataFromChat(history []string) (*SmartAnalysisData, error) {
 	transcript := strings.Join(history, "\n")
 
-	prompt := fmt.Sprintf(`
-Analyze the following conversation transcript between a User and a Business Analyst.
-Extract all requirements and generate a structured Business Analysis Report.
-Return ONLY valid JSON (no markdown) with this structure:
-{
-  "questions": [
-    {"step": 1, "question": "...", "answer": "..."},
-    ...
-  ],
-  "smart_requirements": {
-    "specific": "...",
-    "measurable": "...",
-    "achievable": "...",
-    "relevant": "...",
-    "time_bound": "..."
-  },
-  "summary": "Short task description"
-}
-
-Transcript:
-%s
-`, transcript)
+	prompt := fmt.Sprintf(prompts.SmartAnalysisPromptTemplate, transcript)
 
 	return s.AnalyzeSmartRequest(prompt)
 }
