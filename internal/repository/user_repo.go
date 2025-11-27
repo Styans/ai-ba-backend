@@ -51,3 +51,9 @@ func (r *UserRepo) UpsertByProvider(provider, providerID string, u *models.User)
 	}
 	return nil, err
 }
+
+func (r *UserRepo) GetAll() ([]models.User, error) {
+	var users []models.User
+	err := r.db.Find(&users).Error
+	return users, err
+}

@@ -54,6 +54,29 @@ func AuthMiddleware() fiber.Handler {
 					identifier = sub
 				}
 				c.Locals("user", "local:"+identifier)
+
+				// Extract user_id from sub if it's a number
+				if sub, ok := claims["sub"]; ok {
+					switch v := sub.(type) {
+					case float64:
+						c.Locals("user_id", uint(v))
+					case int64:
+						c.Locals("user_id", uint(v))
+					case int:
+						c.Locals("user_id", uint(v))
+					}
+				}
+
+				// Extract role
+				if role, ok := claims["role"].(string); ok {
+					c.Locals("user_role", role)
+				}
+
+				// Extract name
+				if name, ok := claims["name"].(string); ok {
+					c.Locals("user_name", name)
+				}
+
 				return c.Next()
 			}
 			// fallthrough к другим методам
@@ -105,6 +128,36 @@ func AuthMiddleware() fiber.Handler {
 // GetUser — получить пользовательскую локаль из Fiber контекста.
 func GetUser(c *fiber.Ctx) string {
 	if v := c.Locals("user"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// GetUserID — получить ID пользователя из Fiber контекста (если есть).
+func GetUserID(c *fiber.Ctx) uint {
+	if v := c.Locals("user_id"); v != nil {
+		if id, ok := v.(uint); ok {
+			return id
+		}
+	}
+	return 0
+}
+
+// GetUserRole — получить роль пользователя из Fiber контекста.
+func GetUserRole(c *fiber.Ctx) string {
+	if v := c.Locals("user_role"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// GetUserName — получить имя пользователя из Fiber контекста.
+func GetUserName(c *fiber.Ctx) string {
+	if v := c.Locals("user_name"); v != nil {
 		if s, ok := v.(string); ok {
 			return s
 		}

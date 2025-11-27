@@ -5,7 +5,7 @@ database:
   dsn: "postgres://postgres:456123@localhost:5432/aiba?sslmode=disable"
 
 ai:
-  provider: "openai"
+  provider: "gemini"
   api_key: "AIzaSyARCX9Gq9xC_0Kq4s3S3J_47oYssVQwStk"
 
 confluence:

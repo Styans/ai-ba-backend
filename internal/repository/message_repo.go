@@ -31,3 +31,7 @@ func (r *MessageRepo) ListBySession(sessionID uint) ([]models.Message, error) {
 	}
 	return msgs, nil
 }
+
+func (r *MessageRepo) GetBySessionID(sessionID uint) ([]models.Message, error) {
+	return r.ListBySession(sessionID)
+}

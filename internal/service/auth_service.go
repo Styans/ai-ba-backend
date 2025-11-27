@@ -33,6 +33,30 @@ func NewAuthService(ur *repository.UserRepo) *AuthService {
 	}
 }
 
+func (s *AuthService) CreateUser(email, password, name, role, position string) (string, error) {
+	// check exists
+	if _, err := s.users.FindByEmail(email); err == nil {
+		return "", errors.New("user already exists")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	u := &models.User{
+		Email:        email,
+		PasswordHash: string(hash),
+		Name:         name,
+		Provider:     "local",
+		Role:         role,
+		Position:     position,
+	}
+	if err := s.users.Create(u); err != nil {
+		return "", err
+	}
+	// generate token
+	return s.GenerateToken(u)
+}
+
 func (s *AuthService) Register(email, password, name string) (string, error) {
 	// check exists
 	if _, err := s.users.FindByEmail(email); err == nil {

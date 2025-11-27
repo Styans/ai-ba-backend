@@ -43,3 +43,23 @@ func (r *DraftRepo) Update(d *models.Draft) error {
 func (r *DraftRepo) Delete(id uint) error {
 	return r.db.Delete(&models.Draft{}, id).Error
 }
+
+func (r *DraftRepo) ListByUser(userID uint) ([]models.Draft, error) {
+	var list []models.Draft
+	if err := r.db.Where("user_id = ?", userID).Order("id DESC").Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
+func (r *DraftRepo) DeleteAllByUser(userID uint) error {
+	return r.db.Where("user_id = ?", userID).Delete(&models.Draft{}).Error
+}
+
+func (r *DraftRepo) GetBySessionID(sessionID uint) (*models.Draft, error) {
+	var d models.Draft
+	if err := r.db.Where("session_id = ?", sessionID).Order("created_at DESC").First(&d).Error; err != nil {
+		return nil, err
+	}
+	return &d, nil
+}

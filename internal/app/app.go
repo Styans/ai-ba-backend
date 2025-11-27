@@ -38,13 +38,26 @@ func Run() error {
 	userRepo := repository.NewUserRepo(db)
 	msgRepo := repository.NewMessageRepo(db)
 	sessRepo := repository.NewSessionRepo(db)
+	draftRepo := repository.NewDraftRepo(db)
+	teamMsgRepo := repository.NewTeamMessageRepo(db)
 
 	// services
 	authService := service.NewAuthService(userRepo)
 	llmService := service.NewLLMService()
+	docService := service.NewDocService()
+	draftService := service.NewDraftService(draftRepo, llmService, docService)
+
+	// Seed Admin
+	_, err = authService.CreateUser("admin@example.com", "admin123", "Admin User", "Business Analyst", "Lead Business Analyst")
+	if err != nil {
+		log.Println("Admin seed status:", err)
+	}
+
+	// hub
+	hub := router.NewHub()
 
 	// router (передаём репозитории и llm)
-	app := router.NewRouter(authService, llmService, msgRepo, sessRepo)
+	app := router.NewRouter(authService, llmService, draftService, msgRepo, sessRepo, draftRepo, teamMsgRepo, userRepo, hub, cfg.JWTSecret)
 
 	port := cfg.Server.Port
 	if port == "" {
