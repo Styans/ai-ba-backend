@@ -93,7 +93,7 @@ Exactly ONE JSON per answer.
 }
 
 Rules:
-- 5 questions always.
+- 1 to 5 questions as needed.
 - No conversational text.
 
 4.2. clarification format:
@@ -168,8 +168,6 @@ Process per stage:
 - Wait for answers.
 - If answers unclear → CLARIFICATION for same stage.
 - Only after clarity → next stage.
-
-Never skip a stage.
 
 --------------------------------------------------
 5.1 ADAPTIVE FLOW LOGIC (smart question reduction)
