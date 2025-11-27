@@ -78,7 +78,7 @@ func (s *LLMService) AnalyzeRequest(userReq string) (*AnalysisData, error) {
 You are an expert Business Analyst. Analyze the following user request and generate a structured Business Analysis Report.
 Return ONLY valid JSON (no markdown formatting, no backticks) with the following structure:
 {
-	"goal": "Short goal statement",
+	"goal": "Goal statement formulated according to SMART criteria (Specific, Measurable, Achievable, Relevant, Time-bound)",
 	"description": "Detailed description",
 	"scope": "In/Out of scope",
 	"business_rules": ["Rule 1", "Rule 2"],
@@ -120,17 +120,66 @@ func (s *LLMService) Chat(history []models.Message, userInput string) (string, e
 		return "", fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 	defer client.Close()
-
 	model := client.GenerativeModel("gemini-2.5-flash")
 	model.SetTemperature(0.7)
 
 	// System Prompt
 	systemPrompt := `
-You are an expert Business Analyst Interviewer. Your goal is to gather requirements for a software project.
-Ask ONE question at a time to clarify: Goal, Description, Scope, Business Rules, KPIs, Users.
-Do NOT generate the document text yourself.
-When you have enough info, ask: "Shall I generate the document now?"
-If the user says "Yes" (or similar), your response must contain ONLY this tag: [GENERATE_DOC]
+You are an intelligent business assistant. Your goal is to gather requirements via a strict 5-stage questionnaire.
+After the user's initial request, you must start the process.
+
+STAGES (5 questions each):
+1. Goal of the Request
+2. Target Audience & User Roles
+3. Business Process & Constraints
+4. Expected Results & KPIs
+5. Technical Requirements & Integrations
+
+PROTOCOL:
+1. Receive user request.
+2. Send Stage 1 questions (JSON).
+3. Wait for answers.
+4. Send Stage 2 questions (JSON).
+...
+5. After Stage 5 answers, send Final Requirements (JSON).
+
+OUTPUT FORMATS (Strict JSON ONLY, no markdown, no other text):
+
+TYPE 1: QUESTIONNAIRE (Stages 1-5)
+{
+  "type": "questionnaire",
+  "stage": <1-5>,
+  "title": "<Stage Title>",
+  "questions": [
+    { "id": "q1", "text": "Question 1" },
+    { "id": "q2", "text": "Question 2" },
+    { "id": "q3", "text": "Question 3" },
+    { "id": "q4", "text": "Question 4" },
+    { "id": "q5", "text": "Question 5" }
+  ]
+}
+
+TYPE 2: REQUIREMENTS (Final)
+{
+  "type": "requirements",
+  "smart_requirements": {
+    "specific": "...",
+    "measurable": "...",
+    "achievable": "...",
+    "relevant": "...",
+    "time_bound": "..."
+  },
+  "summary": "Brief task description",
+  "answers": [
+    { "step": 1, "question": "...", "answer": "..." },
+    ...
+  ]
+}
+
+RULES:
+- Do NOT output markdown code blocks (like ` + "`" + `json ... ` + "`" + `). Output raw JSON string.
+- Do NOT add any conversational text (e.g., "Here is the next stage"). ONLY JSON.
+- Wait for the user to answer ALL questions of the current stage before moving to the next.
 `
 
 	cs := model.StartChat()
@@ -217,6 +266,52 @@ Transcript:
 `, transcript)
 
 	return s.AnalyzeRequest(prompt) // Reuse the existing parsing logic
+}
+
+func (s *LLMService) AnalyzeSmartRequest(prompt string) (*SmartAnalysisData, error) {
+	jsonStr, err := s.Generate(prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr = cleanJSON(jsonStr)
+
+	var data SmartAnalysisData
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, fmt.Errorf("failed to parse LLM JSON: %w\nResponse: %s", err, jsonStr)
+	}
+
+	return &data, nil
+}
+
+// ExtractSmartDataFromChat analyzes the full conversation history to produce the JSON report.
+func (s *LLMService) ExtractSmartDataFromChat(history []string) (*SmartAnalysisData, error) {
+	transcript := strings.Join(history, "\n")
+
+	prompt := fmt.Sprintf(`
+Analyze the following conversation transcript between a User and a Business Analyst.
+Extract all requirements and generate a structured Business Analysis Report.
+Return ONLY valid JSON (no markdown) with this structure:
+{
+  "questions": [
+    {"step": 1, "question": "...", "answer": "..."},
+    ...
+  ],
+  "smart_requirements": {
+    "specific": "...",
+    "measurable": "...",
+    "achievable": "...",
+    "relevant": "...",
+    "time_bound": "..."
+  },
+  "summary": "Short task description"
+}
+
+Transcript:
+%s
+`, transcript)
+
+	return s.AnalyzeSmartRequest(prompt)
 }
 
 func cleanJSON(s string) string {

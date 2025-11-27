@@ -7,6 +7,7 @@ import (
 	"ai-ba/internal/service"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/websocket/v2"
 )
 
@@ -19,6 +20,11 @@ func NewRouter(
 	sessRepo *repository.SessionRepo,
 ) *fiber.App {
 	app := fiber.New()
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:3001",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	authHandler := handlers.NewAuthHandler(authService)
 	draftHandler := handlers.NewDraftHandler(draftService)

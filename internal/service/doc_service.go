@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gingfrederik/docx"
@@ -14,14 +15,34 @@ func NewDocService() *DocService {
 }
 
 type AnalysisData struct {
-	Goal          string   `json:"goal"`
-	Description   string   `json:"description"`
-	Scope         string   `json:"scope"`
-	BusinessRules []string `json:"business_rules"`
-	KPIs          []string `json:"kpis"`
-	UseCases      []string `json:"use_cases"`
-	UserStories   []string `json:"user_stories"`
-	DiagramsDesc  []string `json:"diagrams_desc"` // Description of needed diagrams
+	Goal          string      `json:"goal"`
+	Description   string      `json:"description"`
+	Scope         interface{} `json:"scope"`
+	BusinessRules []string    `json:"business_rules"`
+	KPIs          []string    `json:"kpis"`
+	UseCases      []string    `json:"use_cases"`
+	UserStories   []string    `json:"user_stories"`
+	DiagramsDesc  []string    `json:"diagrams_desc"` // Description of needed diagrams
+}
+
+type QuestionPair struct {
+	Step     int    `json:"step"`
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+type SmartRequirements struct {
+	Specific   string `json:"specific"`
+	Measurable string `json:"measurable"`
+	Achievable string `json:"achievable"`
+	Relevant   string `json:"relevant"`
+	TimeBound  string `json:"time_bound"`
+}
+
+type SmartAnalysisData struct {
+	Questions         []QuestionPair    `json:"questions"`
+	SmartRequirements SmartRequirements `json:"smart_requirements"`
+	Summary           string            `json:"summary"`
 }
 
 func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (string, error) {
@@ -41,7 +62,27 @@ func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (str
 	s.addSection(f, "2. Description", data.Description)
 
 	// 3. Scope
-	s.addSection(f, "3. Scope", data.Scope)
+	var scopeText string
+	switch v := data.Scope.(type) {
+	case string:
+		scopeText = v
+	case map[string]interface{}:
+		if in, ok := v["in_scope"].([]interface{}); ok {
+			scopeText += "In Scope:\n"
+			for _, i := range in {
+				scopeText += fmt.Sprintf("- %v\n", i)
+			}
+		}
+		if out, ok := v["out_of_scope"].([]interface{}); ok {
+			scopeText += "\nOut of Scope:\n"
+			for _, i := range out {
+				scopeText += fmt.Sprintf("- %v\n", i)
+			}
+		}
+	default:
+		scopeText = fmt.Sprintf("%v", v)
+	}
+	s.addSection(f, "3. Scope", scopeText)
 
 	// 4. Business Rules
 	s.addListSection(f, "4. Business Rules", data.BusinessRules)
@@ -57,6 +98,9 @@ func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (str
 	s.addSubSection(f, "6.3 Process Diagrams (Descriptions)", data.DiagramsDesc)
 
 	// Save
+	if err := os.MkdirAll("storage", 0755); err != nil {
+		return "", fmt.Errorf("failed to create storage dir: %w", err)
+	}
 	path := fmt.Sprintf("./storage/%s", filename)
 	if err := f.Save(path); err != nil {
 		return "", err
