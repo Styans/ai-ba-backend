@@ -533,26 +533,6 @@ Transcript:
 `
 
 	// SmartAnalysisPromptTemplate is used for smart analysis of a conversation transcript.
-	SmartAnalysisPromptTemplate = `
-Analyze the following conversation transcript between a User and a Business Analyst.
-Extract all requirements and generate a structured Business Analysis Report.
-Return ONLY valid JSON (no markdown) with this structure:
-{
-  "questions": [
-    {"step": 1, "question": "...", "answer": "..."},
-    ...
-  ],
-  "smart_requirements": {
-    "specific": "...",
-    "measurable": "...",
-    "achievable": "...",
-    "relevant": "...",
-    "time_bound": "..."
-  },
-  "summary": "Short task description"
-}
 
-Transcript:
-%s
-`
+
 )

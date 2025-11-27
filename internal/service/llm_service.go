@@ -197,15 +197,6 @@ func (s *LLMService) AnalyzeSmartRequest(prompt string) (*SmartAnalysisData, err
 	return &data, nil
 }
 
-// ExtractSmartDataFromChat analyzes the full conversation history to produce the JSON report.
-func (s *LLMService) ExtractSmartDataFromChat(history []string) (*SmartAnalysisData, error) {
-	transcript := strings.Join(history, "\n")
-
-	prompt := fmt.Sprintf(prompts.SmartAnalysisPromptTemplate, transcript)
-
-	return s.AnalyzeSmartRequest(prompt)
-}
-
 func cleanJSON(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.TrimPrefix(s, "```json")

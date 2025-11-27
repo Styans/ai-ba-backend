@@ -48,7 +48,7 @@ func Run() error {
 	draftService := service.NewDraftService(draftRepo, llmService, docService)
 
 	// Seed Admin
-	_, err = authService.CreateUser("admin@example.com", "admin123", "Admin User", "Business Analyst")
+	_, err = authService.CreateUser("admin@example.com", "admin123", "Admin User", "Business Analyst", "Lead Business Analyst")
 	if err != nil {
 		log.Println("Admin seed status:", err)
 	}

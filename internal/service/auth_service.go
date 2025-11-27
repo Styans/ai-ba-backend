@@ -33,7 +33,7 @@ func NewAuthService(ur *repository.UserRepo) *AuthService {
 	}
 }
 
-func (s *AuthService) CreateUser(email, password, name, role string) (string, error) {
+func (s *AuthService) CreateUser(email, password, name, role, position string) (string, error) {
 	// check exists
 	if _, err := s.users.FindByEmail(email); err == nil {
 		return "", errors.New("user already exists")
@@ -48,6 +48,7 @@ func (s *AuthService) CreateUser(email, password, name, role string) (string, er
 		Name:         name,
 		Provider:     "local",
 		Role:         role,
+		Position:     position,
 	}
 	if err := s.users.Create(u); err != nil {
 		return "", err

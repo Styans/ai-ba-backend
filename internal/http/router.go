@@ -67,9 +67,11 @@ func NewRouter(
 		for _, u := range users {
 			if u.ID != currentUserID {
 				otherUsers = append(otherUsers, map[string]interface{}{
-					"id":    u.ID,
-					"name":  u.Name,
-					"email": u.Email,
+					"id":       u.ID,
+					"name":     u.Name,
+					"email":    u.Email,
+					"role":     u.Role,
+					"position": u.Position,
 				})
 			}
 		}

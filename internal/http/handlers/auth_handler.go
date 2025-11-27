@@ -74,12 +74,13 @@ func (h *AuthHandler) CreateUser(c *fiber.Ctx) error {
 		Password string `json:"password"`
 		Name     string `json:"name"`
 		Role     string `json:"role"`
+		Position string `json:"position"`
 	}
 	if err := c.BodyParser(&p); err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString("invalid json")
 	}
 
-	token, err := h.service.CreateUser(p.Email, p.Password, p.Name, p.Role)
+	token, err := h.service.CreateUser(p.Email, p.Password, p.Name, p.Role, p.Position)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
