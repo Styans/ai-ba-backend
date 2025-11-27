@@ -35,3 +35,21 @@ func (r *MessageRepo) ListBySession(sessionID uint) ([]models.Message, error) {
 func (r *MessageRepo) GetBySessionID(sessionID uint) ([]models.Message, error) {
 	return r.ListBySession(sessionID)
 }
+
+func (r *MessageRepo) DeleteBySessionID(sessionID uint) error {
+	return r.db.Where("session_id = ?", sessionID).Delete(&models.Message{}).Error
+}
+
+func (r *MessageRepo) DeleteAllByUser(userID uint) error {
+	// Messages don't have user_id directly, they are linked via session_id.
+	// So we need to delete messages where session_id IN (SELECT id FROM sessions WHERE user_id = ?)
+	// OR, we can just rely on the fact that we are deleting sessions right after.
+	// But to be clean, let's do a join delete or subquery.
+	// GORM: db.Where("session_id IN (?)", db.Table("sessions").Select("id").Where("user_id = ?", userID)).Delete(&models.Message{})
+	return r.db.Where("session_id IN (?)", r.db.Table("sessions").Select("id").Where("user_id = ?", userID)).Delete(&models.Message{}).Error
+}
+
+func (r *MessageRepo) DeleteOrphans() (int64, error) {
+	result := r.db.Where("session_id NOT IN (?)", r.db.Table("sessions").Select("id")).Delete(&models.Message{})
+	return result.RowsAffected, result.Error
+}

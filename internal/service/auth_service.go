@@ -132,6 +132,7 @@ func (s *AuthService) GenerateToken(u *models.User) (string, error) {
 		"sub":   u.ID,
 		"email": u.Email,
 		"name":  u.Name,
+		"role":  u.Role,
 		"exp":   time.Now().Add(s.tokenTTL).Unix(),
 		"iat":   time.Now().Unix(),
 	}

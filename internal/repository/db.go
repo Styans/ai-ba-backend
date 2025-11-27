@@ -21,6 +21,7 @@ func ConnectDB(dsn string) (*gorm.DB, error) {
 		&models.Message{},
 		&models.Draft{},
 		&models.Review{},
+		&models.TeamMessage{},
 	); err != nil {
 		return nil, err
 	}

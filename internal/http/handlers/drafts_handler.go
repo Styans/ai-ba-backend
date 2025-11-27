@@ -2,17 +2,20 @@ package handlers
 
 import (
 	"ai-ba/internal/http/middleware"
+	"ai-ba/internal/repository"
 	"ai-ba/internal/service"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 type DraftHandler struct {
-	service *service.DraftService
+	service  *service.DraftService
+	sessRepo *repository.SessionRepo
+	msgRepo  *repository.MessageRepo
 }
 
-func NewDraftHandler(service *service.DraftService) *DraftHandler {
-	return &DraftHandler{service: service}
+func NewDraftHandler(service *service.DraftService, sessRepo *repository.SessionRepo, msgRepo *repository.MessageRepo) *DraftHandler {
+	return &DraftHandler{service: service, sessRepo: sessRepo, msgRepo: msgRepo}
 }
 
 func (h *DraftHandler) Create(c *fiber.Ctx) error {
@@ -108,7 +111,25 @@ func (h *DraftHandler) DeleteDraft(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).SendString("invalid id")
 	}
 
-	// Ideally check ownership
+	// Get draft to check for session_id
+	draft, err := h.service.GetByID(uint(id))
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).SendString("draft not found")
+	}
+
+	// If draft has a session, delete the session and its messages
+	if draft.SessionID > 0 {
+		// Delete messages
+		if err := h.msgRepo.DeleteBySessionID(draft.SessionID); err != nil {
+			// Log error but continue
+		}
+		// Delete session
+		if err := h.sessRepo.Delete(draft.SessionID); err != nil {
+			// Log error but continue
+		}
+	}
+
+	// Delete the draft
 	if err := h.service.Delete(uint(id)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
 	}

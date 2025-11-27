@@ -63,3 +63,13 @@ func (r *DraftRepo) GetBySessionID(sessionID uint) (*models.Draft, error) {
 	}
 	return &d, nil
 }
+
+func (r *DraftRepo) DeleteBySessionID(sessionID uint) error {
+	return r.db.Where("session_id = ?", sessionID).Delete(&models.Draft{}).Error
+}
+
+func (r *DraftRepo) DeleteOrphans() (int64, error) {
+	// Delete drafts that have a session_id but that session_id does not exist in sessions table
+	result := r.db.Where("session_id > 0 AND session_id NOT IN (?)", r.db.Table("sessions").Select("id")).Delete(&models.Draft{})
+	return result.RowsAffected, result.Error
+}
