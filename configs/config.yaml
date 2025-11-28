@@ -2,7 +2,8 @@ server:
   port: "9000"
 
 database:
-  dsn: "postgresql://aiba_ou74_user:362sE3ZwMZClKL8SHOHTn8lS2VB6a003@dpg-d4kn4d49c44c73f2ihsg-a/aiba_ou74"
+  dsn: "DB_DSN=postgres://aiba_ou74_user:362sE3ZwMZClKL8SHOHTn8lS2VB6a003@dpg-d4kn4d49c44c73f2ihsg-a.oregon-postgres.render.com:5432/aiba_ou74?sslmode=require
+"
 
 ai:
   provider: "gemini"
