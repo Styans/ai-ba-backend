@@ -2,7 +2,7 @@ server:
   port: "9000"
 
 database:
-  dsn: "postgres://postgres:456123@localhost:5432/aiba?sslmode=disable"
+  dsn: "postgresql://aiba_ou74_user:362sE3ZwMZClKL8SHOHTn8lS2VB6a003@dpg-d4kn4d49c44c73f2ihsg-a/aiba_ou74"
 
 ai:
   provider: "gemini"
