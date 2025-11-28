@@ -165,6 +165,60 @@ func (s *DraftService) CreateFromSmartData(sessionID uint, userID uint, data *Sm
 	return draft, nil
 }
 
+func (s *DraftService) CreateFromAnalysisData(sessionID uint, userID uint, data *AnalysisData) (*models.Draft, error) {
+	// 1. Generate Doc
+	filename := fmt.Sprintf("draft_session_%d_%d.docx", sessionID, time.Now().Unix())
+	path, err := s.doc.GenerateBADocument(*data, filename)
+	if err != nil {
+		return nil, fmt.Errorf("doc generation failed: %w", err)
+	}
+
+	// 2. Check if draft exists for this session
+	jsonBytes, _ := json.Marshal(data)
+	existingDraft, err := s.repo.GetBySessionID(sessionID)
+
+	if err == nil && existingDraft != nil {
+		// Update existing draft
+		existingDraft.Title = data.Project.Name
+		if existingDraft.Title == "" {
+			existingDraft.Title = fmt.Sprintf("Session %d Report (Detailed)", sessionID)
+		}
+		existingDraft.Content = data.ExecutiveSummary.Goal
+		existingDraft.FilePath = path
+		existingDraft.StructuredContent = jsonBytes
+		existingDraft.UpdatedAt = time.Now()
+
+		if err := s.repo.Update(existingDraft); err != nil {
+			return nil, fmt.Errorf("db update failed: %w", err)
+		}
+		return existingDraft, nil
+	}
+
+	// Create new draft
+	title := data.Project.Name
+	if title == "" {
+		title = fmt.Sprintf("Session %d Report (Detailed)", sessionID)
+	}
+
+	draft := &models.Draft{
+		Title:             title,
+		Content:           data.ExecutiveSummary.Goal, // Use goal as short content/summary
+		Status:            "PENDING",
+		FilePath:          path,
+		StructuredContent: jsonBytes,
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+		SessionID:         sessionID,
+		UserID:            userID,
+	}
+
+	if err := s.repo.Create(draft); err != nil {
+		return nil, fmt.Errorf("db save failed: %w", err)
+	}
+
+	return draft, nil
+}
+
 type BusinessRequestsResponse struct {
 	Reviewing []models.Draft `json:"reviewing"`
 	Accepted  []models.Draft `json:"accepted"`

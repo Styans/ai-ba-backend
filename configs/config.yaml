@@ -6,7 +6,6 @@ database:
 
 ai:
   provider: "gemini"
-  api_key: "AIzaSyARCX9Gq9xC_0Kq4s3S3J_47oYssVQwStk"
 
 confluence:
   base_url: ""
