@@ -144,17 +144,21 @@ Collect information, structure it and generate a specification ready for Conflue
 
 	// AnalysisPromptTemplate is used for analyzing a single user request.
 	AnalysisPromptTemplate = `
-You are an expert Business Analyst. Analyze the following user request and generate a structured Business Analysis Report.
+You are an expert Business Analyst. Analyze the following user request and generate a structured Business Requirements Document (BRD).
 Return ONLY valid JSON (no markdown formatting, no backticks) with the following structure:
 {
-	"goal": "Goal statement formulated according to SMART criteria (Specific, Measurable, Achievable, Relevant, Time-bound)",
-	"description": "Detailed description",
-	"scope": "In/Out of scope",
-	"business_rules": ["Rule 1", "Rule 2"],
-	"kpis": ["KPI 1", "KPI 2"],
-	"use_cases": ["Use Case 1", "Use Case 2"],
-	"user_stories": ["As a... I want to... So that..."],
-	"diagrams_desc": ["Description of a flowchart", "Description of a sequence diagram"]
+  "project": { "name": "Project Name", "manager": "AI Analyst", "date_submitted": "YYYY-MM-DD", "document_status": "Draft" },
+  "executive_summary": { "problem_statement": "...", "goal": "...", "expected_outcomes": "..." },
+  "project_objectives": ["Objective 1", "Objective 2"],
+  "project_scope": { "in_scope": ["..."], "out_of_scope": ["..."] },
+  "business_requirements": [ { "id": "BR-01", "description": "...", "priority_level": "High/Medium/Low", "critical_level": "Must/Should/Could" } ],
+  "key_stakeholders": [ { "name": "...", "job_role": "...", "duties": "..." } ],
+  "project_constraints": [ { "constraint": "...", "description": "..." } ],
+  "cost_benefit_analysis": { "costs": ["..."], "benefits": ["..."], "total_cost": "...", "expected_roi": "..." },
+  "functional_requirements": [ { "module": "...", "features": ["..."] } ],
+  "non_functional_requirements": { "performance": "...", "security": ["..."], "availability": "...", "scalability": "...", "ux_requirements": "..." },
+  "ui_ux_style_guide": { "colors": {"primary": "#..."}, "typography": {"font_family": "..."}, "components": {"button": "..."} },
+  "frontend_styles": { "layout": {"grid": "..."}, "animations": {"hover": "..."} }
 }
 
 User Request: %s
@@ -163,17 +167,21 @@ User Request: %s
 	// TranscriptAnalysisPromptTemplate is used for analyzing a full conversation transcript.
 	TranscriptAnalysisPromptTemplate = `
 Analyze the following conversation transcript between a User and a Business Analyst.
-Extract all requirements and generate a structured Business Analysis Report.
+Extract all requirements and generate a structured Business Requirements Document (BRD).
 Return ONLY valid JSON (no markdown) with this structure:
 {
-	"goal": "...",
-	"description": "...",
-	"scope": "...",
-	"business_rules": [...],
-	"kpis": [...],
-	"use_cases": [...],
-	"user_stories": [...],
-	"diagrams_desc": [...]
+  "project": { "name": "Project Name", "manager": "AI Analyst", "date_submitted": "YYYY-MM-DD", "document_status": "Draft" },
+  "executive_summary": { "problem_statement": "...", "goal": "...", "expected_outcomes": "..." },
+  "project_objectives": ["Objective 1", "Objective 2"],
+  "project_scope": { "in_scope": ["..."], "out_of_scope": ["..."] },
+  "business_requirements": [ { "id": "BR-01", "description": "...", "priority_level": "High/Medium/Low", "critical_level": "Must/Should/Could" } ],
+  "key_stakeholders": [ { "name": "...", "job_role": "...", "duties": "..." } ],
+  "project_constraints": [ { "constraint": "...", "description": "..." } ],
+  "cost_benefit_analysis": { "costs": ["..."], "benefits": ["..."], "total_cost": "...", "expected_roi": "..." },
+  "functional_requirements": [ { "module": "...", "features": ["..."] } ],
+  "non_functional_requirements": { "performance": "...", "security": ["..."], "availability": "...", "scalability": "...", "ux_requirements": "..." },
+  "ui_ux_style_guide": { "colors": {"primary": "#..."}, "typography": {"font_family": "..."}, "components": {"button": "..."} },
+  "frontend_styles": { "layout": {"grid": "..."}, "animations": {"hover": "..."} }
 }
 
 Transcript:

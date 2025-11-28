@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -111,8 +112,10 @@ func NewTeamWSHandler(hub *Hub, msgRepo *repository.TeamMessageRepo, jwtSecret s
 
 			switch msg.Type {
 			case "private_message":
+				fmt.Printf("Received private_message from %d\n", userID)
 				var p privateMessagePayload
 				if err := json.Unmarshal(msg.Payload, &p); err == nil {
+					fmt.Printf("Parsed payload: %+v\n", p)
 					// Save to DB
 					tm := &models.TeamMessage{
 						SenderID:   userID,
@@ -120,9 +123,14 @@ func NewTeamWSHandler(hub *Hub, msgRepo *repository.TeamMessageRepo, jwtSecret s
 						Content:    p.Content,
 						CreatedAt:  time.Now(),
 					}
-					_ = msgRepo.Save(tm)
+					if err := msgRepo.Save(tm); err != nil {
+						fmt.Printf("Error saving message: %v\n", err)
+					} else {
+						fmt.Printf("Message saved with ID: %d\n", tm.ID)
+					}
 
 					// Send to receiver
+					fmt.Printf("Sending to receiver %d\n", p.ReceiverID)
 					hub.SendTo(p.ReceiverID, map[string]interface{}{
 						"type": "new_message",
 						"payload": map[string]interface{}{
@@ -145,6 +153,8 @@ func NewTeamWSHandler(hub *Hub, msgRepo *repository.TeamMessageRepo, jwtSecret s
 							"created_at":  tm.CreatedAt,
 						},
 					})
+				} else {
+					fmt.Printf("Error unmarshaling payload: %v\n", err)
 				}
 
 			case "get_history":
