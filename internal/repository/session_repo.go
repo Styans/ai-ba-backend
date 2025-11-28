@@ -39,3 +39,9 @@ func (r *SessionRepo) DeleteAllByUser(userID uint) error {
 func (r *SessionRepo) Delete(id uint) error {
 	return r.db.Delete(&models.Session{}, id).Error
 }
+
+func (r *SessionRepo) DeleteUnlinkedSessions(userID uint) error {
+	// Delete sessions for user that are NOT in drafts
+	// Subquery: SELECT session_id FROM drafts WHERE session_id IS NOT NULL
+	return r.db.Where("user_id = ? AND id NOT IN (?)", userID, r.db.Table("drafts").Select("session_id").Where("session_id > 0")).Delete(&models.Session{}).Error
+}

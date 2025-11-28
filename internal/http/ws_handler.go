@@ -193,9 +193,11 @@ func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, m
 
 				// Try to parse reply as JSON
 				cleanReply := strings.TrimSpace(reply)
-				cleanReply = strings.TrimPrefix(cleanReply, "```json")
-				cleanReply = strings.TrimPrefix(cleanReply, "```")
-				cleanReply = strings.TrimSuffix(cleanReply, "```")
+				start := strings.Index(cleanReply, "{")
+				end := strings.LastIndex(cleanReply, "}")
+				if start != -1 && end != -1 && end > start {
+					cleanReply = cleanReply[start : end+1]
+				}
 
 				var jsonReply struct {
 					Type string `json:"type"`
@@ -238,6 +240,13 @@ func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, m
 						}
 					}
 				} else {
+					// Logging for debugging
+					if err != nil {
+						fmt.Printf("JSON Parse Error: %v\nCleaned Reply: %s\n", err, cleanReply)
+					} else if jsonReply.Type != "questionnaire" && jsonReply.Type != "requirements" {
+						fmt.Printf("Unknown JSON Type: %s\n", jsonReply.Type)
+					}
+
 					// Fallback to text (or legacy [GENERATE_DOC])
 					// Check for [GENERATE_DOC] trigger
 					if strings.Contains(reply, "[GENERATE_DOC]") {

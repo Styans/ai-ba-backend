@@ -32,8 +32,8 @@ func NewRouter(
 	}))
 
 	authHandler := handlers.NewAuthHandler(authService)
-	draftHandler := handlers.NewDraftHandler(draftService)
-	sessionHandler := handlers.NewSessionHandler(sessRepo, msgRepo)
+	draftHandler := handlers.NewDraftHandler(draftService, sessRepo, msgRepo)
+	sessionHandler := handlers.NewSessionHandler(sessRepo, msgRepo, draftRepo)
 
 	// Public auth endpoints
 	app.Post("/auth/register", authHandler.Register)
@@ -42,6 +42,7 @@ func NewRouter(
 
 	// Admin endpoints
 	app.Post("/api/admin/users", middleware.AuthMiddleware(), authHandler.CreateUser)
+	app.Post("/api/admin/cleanup", middleware.AuthMiddleware(), sessionHandler.CleanupDatabase)
 
 	// Health
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -93,6 +94,9 @@ func NewRouter(
 	drafts.Delete("/:id", draftHandler.DeleteDraft)
 	drafts.Get("/:id/download", draftHandler.Download)
 	drafts.Post("/:id/approve", draftHandler.Approve)
+
+	// Business Requests Endpoint
+	app.Get("/api/requests", middleware.AuthMiddleware(), draftHandler.GetBusinessRequests)
 
 	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
 	app.Use("/ws/agent", func(c *fiber.Ctx) error {
