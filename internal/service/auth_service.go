@@ -22,12 +22,11 @@ type AuthService struct {
 	googleClientID string
 }
 
-func NewAuthService(ur *repository.UserRepo) *AuthService {
-	secret := os.Getenv("JWT_SECRET")
+func NewAuthService(ur *repository.UserRepo, jwtSecret string) *AuthService {
 	ttl := 24 * time.Hour
 	return &AuthService{
 		users:          ur,
-		jwtSecret:      secret,
+		jwtSecret:      jwtSecret,
 		tokenTTL:       ttl,
 		googleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 	}

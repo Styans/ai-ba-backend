@@ -19,12 +19,12 @@ const ctxUserKey ctxKey = "user"
 // Ожидает заголовок Authorization: Bearer <token>.
 // Токен сравнивается с AUTH_TOKEN из окружения.
 // Если AUTH_TOKEN пустой — авторизация отключена и запросы пропускаются.
-func AuthMiddleware() fiber.Handler {
+func AuthMiddleware(jwtSecret string) fiber.Handler {
 	expected := strings.TrimSpace(os.Getenv("AUTH_TOKEN"))
 	basicUser := strings.TrimSpace(os.Getenv("BASIC_USER"))
 	basicPass := os.Getenv("BASIC_PASS")
 	googleClientID := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
-	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+	// jwtSecret is passed as argument
 
 	noAuthConfigured := expected == "" && basicUser == "" && googleClientID == "" && jwtSecret == ""
 

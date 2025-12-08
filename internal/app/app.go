@@ -42,7 +42,7 @@ func Run() error {
 	teamMsgRepo := repository.NewTeamMessageRepo(db)
 
 	// services
-	authService := service.NewAuthService(userRepo)
+	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	llmService := service.NewLLMService()
 	docService := service.NewDocService()
 	draftService := service.NewDraftService(draftRepo, llmService, docService)

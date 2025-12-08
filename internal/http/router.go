@@ -11,7 +11,6 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-// NewRouter теперь принимает дополнительные зависимости для ws и drafts
 func NewRouter(
 	authService *service.AuthService,
 	llm *service.LLMService,
@@ -35,35 +34,29 @@ func NewRouter(
 	draftHandler := handlers.NewDraftHandler(draftService, sessRepo, msgRepo)
 	sessionHandler := handlers.NewSessionHandler(sessRepo, msgRepo, draftRepo)
 
-	// Public auth endpoints
 	app.Post("/auth/register", authHandler.Register)
 	app.Post("/auth/login", authHandler.Login)
 	app.Post("/auth/google", authHandler.LoginWithGoogle)
 
-	// Admin endpoints
-	app.Post("/api/admin/users", middleware.AuthMiddleware(), authHandler.CreateUser)
-	app.Post("/api/admin/cleanup", middleware.AuthMiddleware(), sessionHandler.CleanupDatabase)
+	app.Post("/api/admin/users", middleware.AuthMiddleware(jwtSecret), authHandler.CreateUser)
+	app.Post("/api/admin/cleanup", middleware.AuthMiddleware(jwtSecret), sessionHandler.CleanupDatabase)
 
-	// Health
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.SendString("ok")
 	})
 
-	// Protected example endpoint
-	app.Get("/me", middleware.AuthMiddleware(), func(c *fiber.Ctx) error {
+	app.Get("/me", middleware.AuthMiddleware(jwtSecret), func(c *fiber.Ctx) error {
 		user := middleware.GetUser(c)
 		return c.JSON(fiber.Map{"user": user})
 	})
 
-	// List users for Team Chat
-	app.Get("/api/users", middleware.AuthMiddleware(), func(c *fiber.Ctx) error {
+	app.Get("/api/users", middleware.AuthMiddleware(jwtSecret), func(c *fiber.Ctx) error {
 		currentUserID := middleware.GetUserID(c)
 		users, err := userRepo.GetAll()
 		if err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "failed to fetch users"})
 		}
 
-		// Filter out current user
 		otherUsers := make([]map[string]interface{}, 0)
 		for _, u := range users {
 			if u.ID != currentUserID {
@@ -79,15 +72,13 @@ func NewRouter(
 		return c.JSON(otherUsers)
 	})
 
-	// Session endpoints
-	app.Get("/sessions", middleware.AuthMiddleware(), sessionHandler.GetSessions)
-	app.Post("/sessions", middleware.AuthMiddleware(), sessionHandler.CreateSession)
-	app.Delete("/sessions", middleware.AuthMiddleware(), sessionHandler.ClearSessions)
-	app.Delete("/sessions/:id", middleware.AuthMiddleware(), sessionHandler.DeleteSession)
-	app.Get("/sessions/:id/messages", middleware.AuthMiddleware(), sessionHandler.GetMessages)
+	app.Get("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.GetSessions)
+	app.Post("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.CreateSession)
+	app.Delete("/sessions", middleware.AuthMiddleware(jwtSecret), sessionHandler.ClearSessions)
+	app.Delete("/sessions/:id", middleware.AuthMiddleware(jwtSecret), sessionHandler.DeleteSession)
+	app.Get("/sessions/:id/messages", middleware.AuthMiddleware(jwtSecret), sessionHandler.GetMessages)
 
-	// Drafts endpoints (Protected)
-	drafts := app.Group("/drafts", middleware.AuthMiddleware())
+	drafts := app.Group("/drafts", middleware.AuthMiddleware(jwtSecret))
 	drafts.Post("/", draftHandler.Create)
 	drafts.Get("/", draftHandler.List)
 	drafts.Delete("/", draftHandler.ClearDrafts)
@@ -95,10 +86,8 @@ func NewRouter(
 	drafts.Get("/:id/download", draftHandler.Download)
 	drafts.Post("/:id/approve", draftHandler.Approve)
 
-	// Business Requests Endpoint
-	app.Get("/api/requests", middleware.AuthMiddleware(), draftHandler.GetBusinessRequests)
+	app.Get("/api/requests", middleware.AuthMiddleware(jwtSecret), draftHandler.GetBusinessRequests)
 
-	// WebSocket endpoint (agent). Клиент должен подключаться к /ws/agent?token=<jwt>
 	app.Use("/ws/agent", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
 			authHeader := c.Get("Authorization")
@@ -113,12 +102,10 @@ func NewRouter(
 		})
 	})
 
-	// 2) Сам WS-обработчик
 	app.Get("/ws/agent", websocket.New(
-		NewWSHandler(llm, draftService, msgRepo, sessRepo),
+		NewWSHandler(llm, draftService, msgRepo, sessRepo, jwtSecret),
 	))
 
-	// WebSocket endpoint (team)
 	app.Get("/ws/team", websocket.New(
 		NewTeamWSHandler(hub, teamMsgRepo, jwtSecret),
 	))

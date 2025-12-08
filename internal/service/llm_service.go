@@ -82,8 +82,10 @@ func (s *LLMService) AnalyzeRequest(userReq string) (*AnalysisData, error) {
 		return nil, err
 	}
 
-	// Clean up potential markdown code blocks if the LLM adds them
 	jsonStr = cleanJSON(jsonStr)
+
+	// Try to extract only the JSON object if the model emitted text before/after
+	jsonStr = extractJSONObject(jsonStr)
 
 	var data AnalysisData
 	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
@@ -123,7 +125,7 @@ func (s *LLMService) Chat(history []models.Message, userInput string) (string, e
 		{
 			Role: "model",
 			Parts: []genai.Part{
-				genai.Text("Understood. I am ready to interview the user."),
+				genai.Text("System prompt acknowledged. Starting interaction."),
 			},
 		},
 	}
@@ -173,12 +175,32 @@ func (s *LLMService) Chat(history []models.Message, userInput string) (string, e
 
 // ExtractDataFromChat analyzes the full conversation history to produce the JSON report.
 func (s *LLMService) ExtractDataFromChat(history []string) (*AnalysisData, error) {
-	// Join history into a single transcript
 	transcript := strings.Join(history, "\n")
 
 	prompt := fmt.Sprintf(prompts.TranscriptAnalysisPromptTemplate, transcript)
 
-	return s.AnalyzeRequest(prompt) // Reuse the existing parsing logic
+	jsonStr, err := s.Generate(prompt)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr = cleanJSON(jsonStr)
+	jsonStr = extractJSONObject(jsonStr)
+
+	var data AnalysisData
+	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+		return nil, fmt.Errorf("failed to parse LLM JSON: %w\nResponse: %s", err, jsonStr)
+	}
+
+	return &data, nil
+}
+func extractJSONObject(s string) string {
+	start := strings.Index(s, "{")
+	end := strings.LastIndex(s, "}")
+	if start == -1 || end == -1 || end <= start {
+		return s
+	}
+	return s[start : end+1]
 }
 
 func cleanJSON(s string) string {

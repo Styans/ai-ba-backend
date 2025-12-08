@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -36,8 +35,7 @@ type aiDonePayload struct {
 
 // NewWSHandler возвращает функцию-обработчик для websocket соединений.
 // Ожидается, что клиент подключается к /ws/agent?token=<jwt> или передаёт Authorization: Bearer <jwt>.
-func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo) func(conn *websocket.Conn) {
-	jwtSecret := strings.TrimSpace(os.Getenv("JWT_SECRET"))
+func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, msgRepo *repository.MessageRepo, sessRepo *repository.SessionRepo, jwtSecret string) func(conn *websocket.Conn) {
 
 	return func(conn *websocket.Conn) {
 		defer conn.Close()
