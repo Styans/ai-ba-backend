@@ -220,20 +220,63 @@ func NewWSHandler(llm *service.LLMService, draftService *service.DraftService, m
 
 					// If requirements, generate document
 					if jsonReply.Type == "requirements" {
-						var smartData service.SmartAnalysisData
-						if err := json.Unmarshal([]byte(cleanReply), &smartData); err == nil {
-							draft, err := draftService.CreateFromSmartData(p.SessionID, userID, &smartData)
-							if err == nil {
+						// Try to parse as AnalysisData (Final Report)
+						// The AI returns { "type": "requirements", "data": { ... } }
+						// So we need to unmarshal into a wrapper first
+						var wrapper struct {
+							Type string               `json:"type"`
+							Data service.AnalysisData `json:"data"`
+						}
+
+						if err := json.Unmarshal([]byte(cleanReply), &wrapper); err == nil && wrapper.Type == "requirements" {
+							detailedReq := wrapper.Data
+
+							// Create or Update Draft
+							draft, err := draftService.CreateFromAnalysisData(p.SessionID, userID, &detailedReq)
+							if err != nil {
+								fmt.Printf("Failed to create draft from analysis data: %v", err)
+								send <- map[string]interface{}{
+									"type": "error",
+									"payload": map[string]interface{}{
+										"msg": "Failed to generate document",
+									},
+								}
+							} else {
 								send <- map[string]interface{}{
 									"type": "doc_generated",
 									"payload": map[string]interface{}{
 										"draft_id":  draft.ID,
 										"file_path": draft.FilePath,
 										"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
+										"title":     detailedReq.Project.Name,
 									},
 								}
-							} else {
-								fmt.Printf("Failed to generate doc: %v\n", err)
+							}
+						} else {
+							// Fallback to old SmartAnalysisData
+							// ... (existing fallback logic)
+							fmt.Printf("Failed to parse as detailed requirements, trying smart analysis...\n")
+							// We can leave the fallback logic as is or just log error if we are sure we want detailed only
+							// For now, let's just log error and send error message if detailed parsing failed but type was requirements
+							// Actually, the original code had a fallback. Let's keep it simple for now.
+							send <- map[string]interface{}{"type": "error", "payload": map[string]string{"msg": "Failed to parse document data"}}
+
+							// Fallback to legacy SmartAnalysisData (if any old prompts still exist or for backward compatibility)
+							var smartData service.SmartAnalysisData
+							if err := json.Unmarshal([]byte(cleanReply), &smartData); err == nil {
+								draft, err := draftService.CreateFromSmartData(p.SessionID, userID, &smartData)
+								if err == nil {
+									send <- map[string]interface{}{
+										"type": "doc_generated",
+										"payload": map[string]interface{}{
+											"draft_id":  draft.ID,
+											"file_path": draft.FilePath,
+											"url":       fmt.Sprintf("/drafts/%d/download", draft.ID),
+										},
+									}
+								} else {
+									fmt.Printf("Failed to generate doc (smart): %v\n", err)
+								}
 							}
 						}
 					}

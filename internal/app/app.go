@@ -25,6 +25,8 @@ func Run() error {
 
 	// DSN из конфигурации (env имеет приоритет)
 	dsn := cfg.Database.DSN
+	dsn = os.Getenv("DB_DSN")
+	
 	if dsn == "" {
 		return fmt.Errorf("DB_DSN not set")
 	}

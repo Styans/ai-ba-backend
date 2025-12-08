@@ -71,14 +71,39 @@ type NonFunctionalRequirements struct {
 }
 
 type UIUXStyleGuide struct {
-	Colors     map[string]string `json:"colors"`
-	Typography map[string]string `json:"typography"`
-	Components map[string]string `json:"components"`
+	Colors     map[string]interface{} `json:"colors"`
+	Typography map[string]interface{} `json:"typography"`
+	Components map[string]interface{} `json:"components"`
 }
 
 type FrontendStyles struct {
-	Layout     map[string]string `json:"layout"`
-	Animations map[string]string `json:"animations"`
+	Layout     map[string]interface{} `json:"layout"`
+	Animations map[string]interface{} `json:"animations"`
+}
+
+type UseCase struct {
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Description      string   `json:"description"`
+	Actors           []string `json:"actors"`
+	PreConditions    string   `json:"pre_conditions"`
+	PostConditions   string   `json:"post_conditions"`
+	MainFlow         []string `json:"main_flow"`
+	AlternativeFlows []string `json:"alternative_flows"`
+}
+
+type UserStory struct {
+	ID                 string   `json:"id"`
+	Role               string   `json:"role"`
+	Action             string   `json:"action"`
+	Benefit            string   `json:"benefit"`
+	AcceptanceCriteria []string `json:"acceptance_criteria"`
+}
+
+type ProcessFlow struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MermaidCode string `json:"mermaid_code"` // Mermaid JS syntax for diagram
 }
 
 type AnalysisData struct {
@@ -92,6 +117,10 @@ type AnalysisData struct {
 	CostBenefitAnalysis       CostBenefitAnalysis       `json:"cost_benefit_analysis"`
 	FunctionalRequirements    []FunctionalRequirement   `json:"functional_requirements"`
 	NonFunctionalRequirements NonFunctionalRequirements `json:"non_functional_requirements"`
+	UseCases                  []UseCase                 `json:"use_cases"`
+	UserStories               []UserStory               `json:"user_stories"`
+	ProcessFlows              []ProcessFlow             `json:"process_flows"`
+	LeadingIndicators         []string                  `json:"leading_indicators"`
 	UIUXStyleGuide            UIUXStyleGuide            `json:"ui_ux_style_guide"`
 	FrontendStyles            FrontendStyles            `json:"frontend_styles"`
 }
@@ -187,6 +216,42 @@ func (s *DocService) GenerateBADocument(data AnalysisData, filename string) (str
 	f.AddParagraph().AddText("Scalability: " + data.NonFunctionalRequirements.Scalability)
 	f.AddParagraph().AddText("UX Requirements: " + data.NonFunctionalRequirements.UXRequirements)
 	f.AddParagraph()
+
+	// 10. Analytical Artifacts
+	f.AddParagraph().AddText("10. Analytical Artifacts").Size(16)
+
+	// User Stories
+	f.AddParagraph().AddText("10.1 User Stories").Size(14)
+	for _, us := range data.UserStories {
+		f.AddParagraph().AddText(fmt.Sprintf("%s: As a %s, I want to %s, so that %s", us.ID, us.Role, us.Action, us.Benefit))
+		s.addSubSection(f, "Acceptance Criteria", us.AcceptanceCriteria)
+	}
+
+	// Use Cases
+	f.AddParagraph().AddText("10.2 Use Cases").Size(14)
+	for _, uc := range data.UseCases {
+		f.AddParagraph().AddText(fmt.Sprintf("%s: %s", uc.ID, uc.Name)).Size(12)
+		f.AddParagraph().AddText(uc.Description)
+		f.AddParagraph().AddText("Actors: " + fmt.Sprintf("%v", uc.Actors))
+		f.AddParagraph().AddText("Pre-conditions: " + uc.PreConditions)
+		s.addSubSection(f, "Main Flow", uc.MainFlow)
+		s.addSubSection(f, "Alternative Flows", uc.AlternativeFlows)
+		f.AddParagraph().AddText("Post-conditions: " + uc.PostConditions)
+		f.AddParagraph()
+	}
+
+	// Process Flows
+	f.AddParagraph().AddText("10.3 Process Flows").Size(14)
+	for _, pf := range data.ProcessFlows {
+		f.AddParagraph().AddText(pf.Name)
+		f.AddParagraph().AddText(pf.Description)
+		f.AddParagraph().AddText("Mermaid Diagram Code:")
+		f.AddParagraph().AddText(pf.MermaidCode).Size(10) // Render code as text for now
+		f.AddParagraph()
+	}
+
+	// Leading Indicators
+	s.addListSection(f, "10.4 Leading Indicators (KPIs)", data.LeadingIndicators)
 
 	// UI/UX Style Guide
 	f.AddParagraph().AddText("10. UI/UX Style Guide").Size(16)
